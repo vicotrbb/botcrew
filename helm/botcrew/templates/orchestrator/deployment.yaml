@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: botcrew-orchestrator
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: botcrew-orchestrator
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.orchestrator.replicas }}
+  selector:
+    matchLabels:
+      app: botcrew-orchestrator
+  template:
+    metadata:
+      labels:
+        app: botcrew-orchestrator
+    spec:
+      serviceAccountName: botcrew-orchestrator
+      containers:
+        - name: orchestrator
+          image: {{ .Values.orchestrator.image }}
+          imagePullPolicy: {{ .Values.orchestrator.imagePullPolicy }}
+          command:
+            - uvicorn
+            - botcrew.app:create_app
+            - --host
+            - "0.0.0.0"
+            - --port
+            - {{ .Values.orchestrator.port | quote }}
+            - --factory
+          ports:
+            - containerPort: {{ .Values.orchestrator.port }}
+              name: http
+          envFrom:
+            - configMapRef:
+                name: botcrew-config
+            - secretRef:
+                name: botcrew-secrets
+          readinessProbe:
+            httpGet:
+              path: /api/v1/system/health
+              port: {{ .Values.orchestrator.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/v1/system/health
+              port: {{ .Values.orchestrator.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5

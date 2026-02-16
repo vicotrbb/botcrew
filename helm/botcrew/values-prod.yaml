@@ -1,0 +1,14 @@
+## Botcrew Helm Chart - Production Overrides
+## Usage: helm install botcrew ./helm/botcrew -f helm/botcrew/values-prod.yaml
+
+## Orchestrator
+orchestrator:
+  imagePullPolicy: Always
+
+## PostgreSQL
+postgres:
+  storage: 50Gi
+
+## Gateway API
+gateway:
+  className: ""  # Set to your cloud provider's gateway class

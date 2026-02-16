@@ -1,0 +1,6 @@
+{{/*
+Note: The StatefulSet uses volumeClaimTemplates for dynamic PVC provisioning.
+This standalone PVC template is provided as an alternative for environments
+where StatefulSet volumeClaimTemplates are not desired.
+It is NOT deployed by default -- the StatefulSet handles PVC creation.
+*/}}

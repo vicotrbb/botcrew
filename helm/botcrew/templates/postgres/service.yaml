@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: botcrew-postgres
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: botcrew-postgres
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.postgres.port }}
+      targetPort: {{ .Values.postgres.port }}
+      protocol: TCP
+      name: postgres
+  selector:
+    app: botcrew-postgres

@@ -1,0 +1,17 @@
+Botcrew has been deployed to namespace: {{ .Values.namespace }}
+
+Components:
+  - PostgreSQL StatefulSet (port {{ .Values.postgres.port }})
+  - Redis Deployment (port {{ .Values.redis.port }})
+  - Orchestrator Deployment (port {{ .Values.orchestrator.port }})
+
+To check pod status:
+  kubectl get pods -n {{ .Values.namespace }}
+
+To access the orchestrator API:
+  kubectl port-forward svc/botcrew-orchestrator {{ .Values.orchestrator.port }}:{{ .Values.orchestrator.port }} -n {{ .Values.namespace }}
+  curl http://localhost:{{ .Values.orchestrator.port }}/api/v1/system/health
+
+To check the Gateway:
+  kubectl get gateway -n {{ .Values.namespace }}
+  kubectl get httproute -n {{ .Values.namespace }}

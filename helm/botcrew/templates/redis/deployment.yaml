@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: botcrew-redis
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: botcrew-redis
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: botcrew-redis
+  template:
+    metadata:
+      labels:
+        app: botcrew-redis
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image }}
+          command:
+            - redis-server
+            - --appendonly
+            - "yes"
+          ports:
+            - containerPort: {{ .Values.redis.port }}
+              name: redis
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 3

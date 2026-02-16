@@ -1,0 +1,28 @@
+## Botcrew Helm Chart - Default Values (Development)
+
+namespace: botcrew
+
+## PostgreSQL
+postgres:
+  image: postgres:17-alpine
+  port: 5432
+  database: botcrew
+  user: botcrew
+  password: botcrew
+  storage: 5Gi
+
+## Redis
+redis:
+  image: redis:7-alpine
+  port: 6379
+
+## Orchestrator
+orchestrator:
+  image: botcrew-orchestrator:latest
+  port: 8000
+  replicas: 1
+  imagePullPolicy: Never  # For local kind cluster
+
+## Gateway API
+gateway:
+  className: cloud-provider-kind  # For local dev kind cluster
