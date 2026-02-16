@@ -1,0 +1,72 @@
+---
+# Default deny all ingress in namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Allow orchestrator to receive traffic (from gateway, agents, etc.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-orchestrator-ingress
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: botcrew-orchestrator
+  ingress:
+    - ports:
+        - port: {{ .Values.orchestrator.port }}
+          protocol: TCP
+---
+# Allow Postgres to receive traffic from orchestrator only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-from-orchestrator
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: botcrew-postgres
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: botcrew-orchestrator
+      ports:
+        - port: {{ .Values.postgres.port }}
+          protocol: TCP
+---
+# Allow Redis to receive traffic from orchestrator only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-from-orchestrator
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: botcrew-redis
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: botcrew-orchestrator
+      ports:
+        - port: {{ .Values.redis.port }}
+          protocol: TCP
