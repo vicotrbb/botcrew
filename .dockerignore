@@ -1,20 +1,30 @@
-# Planning docs (managed outside git)
-.planning/
+# Version control
+.git
+.gitignore
 
 # Python
+.venv/
 __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
 dist/
 build/
-.venv/
 
 # Environment and secrets
 .env
 .env.local
 .env.*
 values-secrets.yaml
+
+# Planning and docs
+.planning/
+
+# Helm charts (not needed in image)
+helm/
+
+# Scripts (not needed in image)
+scripts/
 
 # IDE
 .vscode/
@@ -34,8 +44,7 @@ htmlcov/
 # uv
 .uv/
 
-# Kubernetes
-*.kubeconfig
-
 # Docker
-docker-compose.override.yml
+Dockerfile
+.dockerignore
+docker-compose*.yml
