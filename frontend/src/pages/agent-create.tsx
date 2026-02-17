@@ -1,3 +1,11 @@
 export function AgentCreatePage() {
-  return <div>Agent Create</div>;
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Create Agent</h1>
+      <p className="text-muted-foreground mt-1">
+        Born a new agent into the workforce
+      </p>
+      {/* Creation form will be added by Plan 05 */}
+    </div>
+  );
 }
