@@ -13,7 +13,7 @@ export const createAgentSchema = z.object({
     .number()
     .min(10, 'Minimum interval is 10 seconds')
     .max(86400, 'Maximum interval is 86400 seconds (24 hours)')
-    .default(300),
+    .optional(),
 });
 
 /**
