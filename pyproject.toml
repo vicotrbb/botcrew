@@ -19,6 +19,9 @@ dependencies = [
     "httpx>=0.28.0",
     "kubernetes-asyncio>=35.0.0",
     "agno[anthropic,ollama,openai]>=2.5.2",
+    "celery[redis]>=5.5.0,<6",
+    "sqlalchemy-celery-beat>=0.8.0",
+    "psycopg2-binary>=2.9.0",
 ]
 
 [dependency-groups]

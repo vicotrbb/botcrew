@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://botcrew:botcrew@localhost:5432/botcrew"
     # Redis
     redis_url: str = "redis://localhost:6379/0"
+    # Celery
+    celery_broker_url: str = "redis://localhost:6379/0"
+    celery_result_backend: str = "redis://localhost:6379/0"
+    celery_beat_dburi: str = "postgresql://botcrew:botcrew@localhost:5432/botcrew"
     # App
     debug: bool = False
     api_prefix: str = "/api/v1"
