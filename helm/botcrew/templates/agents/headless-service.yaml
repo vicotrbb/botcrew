@@ -1,0 +1,19 @@
+---
+# Headless service for agent pod DNS-based addressing.
+# Each agent pod with hostname=pod_name and subdomain=botcrew-agents gets a DNS record:
+#   <pod-name>.botcrew-agents.<namespace>.svc.cluster.local
+apiVersion: v1
+kind: Service
+metadata:
+  name: botcrew-agents
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    app: botcrew-agent
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
