@@ -1,0 +1,51 @@
+# CRITICAL: Never scale beyond 1 replica -- multiple beat instances cause duplicate task scheduling
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: botcrew-celery-beat
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: botcrew-celery-beat
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: botcrew-celery-beat
+  template:
+    metadata:
+      labels:
+        app: botcrew-celery-beat
+    spec:
+      serviceAccountName: botcrew-orchestrator
+      containers:
+        - name: celery-beat
+          image: {{ .Values.celeryBeat.image }}
+          imagePullPolicy: {{ .Values.celeryBeat.imagePullPolicy }}
+          command: ["celery"]
+          args:
+            - "-A"
+            - "botcrew.tasks.celery_app:celery_app"
+            - "beat"
+            - "--scheduler"
+            - "sqlalchemy_celery_beat.schedulers:DatabaseScheduler"
+            - "--loglevel=info"
+          envFrom:
+            - configMapRef:
+                name: botcrew-config
+            - secretRef:
+                name: botcrew-secrets
+          env:
+            - name: BOTCREW_CELERY_BROKER_URL
+              value: "redis://botcrew-redis:{{ .Values.redis.port }}/0"
+            - name: BOTCREW_CELERY_RESULT_BACKEND
+              value: "redis://botcrew-redis:{{ .Values.redis.port }}/0"
+            - name: BOTCREW_CELERY_BEAT_DBURI
+              value: "postgresql://{{ .Values.postgres.user }}:{{ .Values.postgres.password }}@botcrew-postgres:{{ .Values.postgres.port }}/{{ .Values.postgres.database }}"
+          resources:
+            requests:
+              cpu: {{ .Values.celeryBeat.resources.requests.cpu }}
+              memory: {{ .Values.celeryBeat.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.celeryBeat.resources.limits.cpu }}
+              memory: {{ .Values.celeryBeat.resources.limits.memory }}

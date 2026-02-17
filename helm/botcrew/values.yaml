@@ -23,6 +23,32 @@ orchestrator:
   replicas: 1
   imagePullPolicy: Never  # For local kind cluster
 
+## Celery Worker
+celeryWorker:
+  image: botcrew-orchestrator:latest  # Same image as orchestrator
+  replicas: 1
+  imagePullPolicy: Never  # For local kind cluster
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+## Celery Beat
+celeryBeat:
+  image: botcrew-orchestrator:latest  # Same image as orchestrator
+  replicas: 1  # MUST be exactly 1 -- never scale beat
+  imagePullPolicy: Never
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
 ## Gateway API
 gateway:
   className: cloud-provider-kind  # For local dev kind cluster

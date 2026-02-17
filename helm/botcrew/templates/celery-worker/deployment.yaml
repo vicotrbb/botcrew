@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: botcrew-celery-worker
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: botcrew-celery-worker
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.celeryWorker.replicas }}
+  selector:
+    matchLabels:
+      app: botcrew-celery-worker
+  template:
+    metadata:
+      labels:
+        app: botcrew-celery-worker
+    spec:
+      serviceAccountName: botcrew-orchestrator
+      containers:
+        - name: celery-worker
+          image: {{ .Values.celeryWorker.image }}
+          imagePullPolicy: {{ .Values.celeryWorker.imagePullPolicy }}
+          command: ["celery"]
+          args:
+            - "-A"
+            - "botcrew.tasks.celery_app:celery_app"
+            - "worker"
+            - "--loglevel=info"
+            - "--concurrency=4"
+          envFrom:
+            - configMapRef:
+                name: botcrew-config
+            - secretRef:
+                name: botcrew-secrets
+          env:
+            - name: BOTCREW_CELERY_BROKER_URL
+              value: "redis://botcrew-redis:{{ .Values.redis.port }}/0"
+            - name: BOTCREW_CELERY_RESULT_BACKEND
+              value: "redis://botcrew-redis:{{ .Values.redis.port }}/0"
+            - name: BOTCREW_CELERY_BEAT_DBURI
+              value: "postgresql://{{ .Values.postgres.user }}:{{ .Values.postgres.password }}@botcrew-postgres:{{ .Values.postgres.port }}/{{ .Values.postgres.database }}"
+          resources:
+            requests:
+              cpu: {{ .Values.celeryWorker.resources.requests.cpu }}
+              memory: {{ .Values.celeryWorker.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.celeryWorker.resources.limits.cpu }}
+              memory: {{ .Values.celeryWorker.resources.limits.memory }}
