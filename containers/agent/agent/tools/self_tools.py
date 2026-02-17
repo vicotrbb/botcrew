@@ -133,7 +133,7 @@ class SelfTools(Toolkit):
         if result is None:
             return "Unable to read self info at this time."
         try:
-            data = result.get("data", {}).get("attributes", {})
+            data = result
             parts = [
                 f"Name: {data.get('name', 'Unknown')}",
                 f"Identity: {data.get('identity', 'Not set')}",
