@@ -30,6 +30,8 @@ class JSONAPIListResponse(BaseModel):
     """JSON:API response envelope containing a list of resources."""
 
     data: list[JSONAPIResource]
+    meta: dict[str, Any] | None = None
+    links: dict[str, Any] | None = None
 
 
 class JSONAPIError(BaseModel):
