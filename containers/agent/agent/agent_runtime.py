@@ -1,8 +1,9 @@
 """AgentRuntime -- Agno Agent wrapper for the agent container.
 
-Wraps an Agno ``Agent`` instance with BrowserTools, MemoryTools, SelfTools,
-and CommunicationTools, providing a ``process_message()`` interface used by
-/message, /wake, and heartbeat.
+Wraps an Agno ``Agent`` instance with all seven toolkits (BrowserTools,
+MemoryTools, SelfTools, CommunicationTools, CodingTools, DuckDuckGoTools,
+SkillTools), providing a ``process_message()`` interface used by /message,
+/wake, and heartbeat.
 
 The runtime is initialised during the FastAPI lifespan startup, after
 the boot sequence has fetched configuration from the orchestrator.
@@ -12,9 +13,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import Any
 
 from agno.agent import Agent
+from agno.tools.coding import CodingTools
+from agno.tools.duckduckgo import DuckDuckGoTools
 
 from agent.config import AgentSettings
 from agent.model_factory import create_model
@@ -22,12 +26,13 @@ from agent.tools.browser_tools import BrowserTools
 from agent.tools.communication_tools import CommunicationTools
 from agent.tools.memory_tools import MemoryTools
 from agent.tools.self_tools import SelfTools
+from agent.tools.skill_tools import SkillTools
 
 logger = logging.getLogger(__name__)
 
 
 class AgentRuntime:
-    """Core runtime wrapping an Agno Agent with all four toolkits.
+    """Core runtime wrapping an Agno Agent with all seven toolkits.
 
     Lifecycle:
     1. ``__init__`` stores config, settings, sub-instance tracking
@@ -58,8 +63,9 @@ class AgentRuntime:
         """Create the Agno Agent instance with model and tools.
 
         Creates the AI model via the local model factory, builds
-        instructions from identity + personality, and registers all
-        four toolkits (Browser, Memory, Self, Communication).
+        instructions from identity + personality + skill summaries,
+        and registers all seven toolkits (Browser, Memory, Self,
+        Communication, Coding, DuckDuckGo, Skills).
         """
         logger.info("Initializing AgentRuntime for '%s'", self.config["name"])
 
@@ -77,6 +83,21 @@ class AgentRuntime:
         parts = [p for p in (identity, personality) if p.strip()]
         instructions = "\n".join(parts) if parts else None
 
+        # Inject skill summaries into system prompt
+        skills = self.config.get("skills", [])
+        if skills:
+            skills_section = "\n\n## Available Skills\n"
+            skills_section += (
+                "Use load_skill(name) to get full instructions "
+                "for any skill.\n\n"
+            )
+            for s in skills:
+                skills_section += f"- **{s['name']}**: {s['description']}\n"
+            if instructions:
+                instructions += skills_section
+            else:
+                instructions = skills_section.strip()
+
         # Create toolkits
         self._self_tools = SelfTools(
             orchestrator_url=self.settings.orchestrator_url,
@@ -93,6 +114,24 @@ class AgentRuntime:
             ),
             self._self_tools,
             CommunicationTools(
+                orchestrator_url=self.settings.orchestrator_url,
+                agent_id=self.settings.agent_id,
+            ),
+            CodingTools(
+                base_dir=Path("/workspace"),
+                restrict_to_base_dir=False,
+                all=True,
+                shell_timeout=120,
+                max_lines=2000,
+                max_bytes=50_000,
+            ),
+            DuckDuckGoTools(
+                enable_search=True,
+                enable_news=True,
+                timeout=10,
+                fixed_max_results=10,
+            ),
+            SkillTools(
                 orchestrator_url=self.settings.orchestrator_url,
                 agent_id=self.settings.agent_id,
             ),
@@ -130,7 +169,8 @@ class AgentRuntime:
 
         Called after SelfTools updates identity/personality in config
         to ensure the Agno Agent uses the latest values on the next
-        ``arun()`` call.
+        ``arun()`` call.  Skill summaries are re-injected to survive
+        identity/personality changes.
         """
         if self._agent is None:
             return
@@ -139,6 +179,21 @@ class AgentRuntime:
         personality = self.config.get("personality", "") or ""
         parts = [p for p in (identity, personality) if p.strip()]
         self._agent.instructions = "\n".join(parts) if parts else None
+
+        # Re-inject skill summaries after identity/personality rebuild
+        skills = self.config.get("skills", [])
+        if skills:
+            skills_section = "\n\n## Available Skills\n"
+            skills_section += (
+                "Use load_skill(name) to get full instructions "
+                "for any skill.\n\n"
+            )
+            for s in skills:
+                skills_section += f"- **{s['name']}**: {s['description']}\n"
+            if self._agent.instructions:
+                self._agent.instructions += skills_section
+            else:
+                self._agent.instructions = skills_section.strip()
 
     async def process_message(
         self,
