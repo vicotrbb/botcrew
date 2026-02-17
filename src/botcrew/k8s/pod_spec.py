@@ -16,9 +16,12 @@ from kubernetes_asyncio.client import (
     V1Container,
     V1ContainerPort,
     V1EnvVar,
+    V1HTTPGetAction,
     V1ObjectMeta,
     V1Pod,
     V1PodSpec,
+    V1Probe,
+    V1ResourceRequirements,
 )
 
 
@@ -59,23 +62,52 @@ def build_agent_pod_spec(agent: Any, namespace: str) -> V1Pod:
         ),
     ]
 
-    # Main agent container
+    # Main agent container -- Dockerfile CMD runs uvicorn
     agent_container = V1Container(
         name="agent",
         image="botcrew-agent:latest",
-        command=["python", "-m", "http.server", "8080"],
         ports=[V1ContainerPort(container_port=8080)],
         env=env_vars,
+        startup_probe=V1Probe(
+            http_get=V1HTTPGetAction(path="/health", port=8080),
+            initial_delay_seconds=10,
+            period_seconds=5,
+            failure_threshold=12,  # 60s total startup window
+        ),
+        liveness_probe=V1Probe(
+            http_get=V1HTTPGetAction(path="/health", port=8080),
+            period_seconds=30,
+            failure_threshold=3,
+        ),
+        resources=V1ResourceRequirements(
+            requests={"memory": "256Mi", "cpu": "200m"},
+            limits={"memory": "1Gi", "cpu": "1000m"},
+        ),
     )
 
     # Browser sidecar as init container with restartPolicy=Always
     # (K8s 1.28+ native sidecar pattern: starts before main, runs alongside)
+    # Dockerfile CMD runs the browser sidecar FastAPI app
     browser_sidecar = V1Container(
         name="browser",
-        image="mcr.microsoft.com/playwright/python:v1.50.0-noble",
-        command=["python", "-m", "http.server", "8001"],
+        image="botcrew-browser-sidecar:latest",
         ports=[V1ContainerPort(container_port=8001)],
         restart_policy="Always",
+        startup_probe=V1Probe(
+            http_get=V1HTTPGetAction(path="/api/v1/health", port=8001),
+            initial_delay_seconds=5,
+            period_seconds=2,
+            failure_threshold=15,  # 30s total startup window
+        ),
+        liveness_probe=V1Probe(
+            http_get=V1HTTPGetAction(path="/api/v1/health", port=8001),
+            period_seconds=30,
+            failure_threshold=3,
+        ),
+        resources=V1ResourceRequirements(
+            requests={"memory": "128Mi", "cpu": "100m"},
+            limits={"memory": "512Mi", "cpu": "500m"},
+        ),
     )
 
     return V1Pod(
