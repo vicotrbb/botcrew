@@ -1,22 +1,23 @@
-import { useState } from 'react';
 import { Outlet } from 'react-router';
+import { useChatStore } from '@/stores/chat-store';
 import { Sidebar } from './Sidebar';
+import { ChatPanel } from '@/components/chat/ChatPanel';
 
 export function MainLayout() {
-  const [isChatOpen, setIsChatOpen] = useState(true);
+  const { isOpen: isChatOpen, toggle: toggleChat } = useChatStore();
 
   return (
     <div className="flex h-screen bg-background text-foreground">
       <Sidebar
         isChatOpen={isChatOpen}
-        onToggleChat={() => setIsChatOpen((prev) => !prev)}
+        onToggleChat={toggleChat}
       />
       <main className="flex-1 overflow-auto">
         <Outlet />
       </main>
       {isChatOpen && (
         <aside className="w-[380px] border-l border-border flex-shrink-0">
-          <div className="p-4 text-sm text-muted-foreground">Chat panel</div>
+          <ChatPanel />
         </aside>
       )}
     </div>

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { WebSocketMessage } from '@/types/message';
 import { WS_BASE_URL } from '@/lib/constants';
 
-type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
 
 const BACKOFF_DELAYS = [1000, 2000, 4000, 8000, 16000];
 
