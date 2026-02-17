@@ -159,5 +159,6 @@ class ProjectTools(Toolkit):
         if result is None:
             return "Failed to backup spec files."
 
-        count = result.get("backed_up", 0)
+        data = result.get("data", {})
+        count = data.get("files_backed_up", 0)
         return f"Backed up {count} files for project {project_id}."
