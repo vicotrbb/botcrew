@@ -39,3 +39,12 @@ htmlcov/
 
 # Docker
 docker-compose.override.yml
+
+# Venv
+.venv/
+
+# Ruff
+.ruff_cache/
+
+# Planning
+.planning/
