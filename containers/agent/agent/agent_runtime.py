@@ -1,9 +1,9 @@
 """AgentRuntime -- Agno Agent wrapper for the agent container.
 
-Wraps an Agno ``Agent`` instance with all seven toolkits (BrowserTools,
+Wraps an Agno ``Agent`` instance with all eight toolkits (BrowserTools,
 MemoryTools, SelfTools, CommunicationTools, CodingTools, DuckDuckGoTools,
-SkillTools), providing a ``process_message()`` interface used by /message,
-/wake, and heartbeat.
+SkillTools, ProjectTools), providing a ``process_message()`` interface
+used by /message, /wake, and heartbeat.
 
 The runtime is initialised during the FastAPI lifespan startup, after
 the boot sequence has fetched configuration from the orchestrator.
@@ -26,13 +26,14 @@ from agent.tools.browser_tools import BrowserTools
 from agent.tools.communication_tools import CommunicationTools
 from agent.tools.memory_tools import MemoryTools
 from agent.tools.self_tools import SelfTools
+from agent.tools.project_tools import ProjectTools
 from agent.tools.skill_tools import SkillTools
 
 logger = logging.getLogger(__name__)
 
 
 class AgentRuntime:
-    """Core runtime wrapping an Agno Agent with all seven toolkits.
+    """Core runtime wrapping an Agno Agent with all eight toolkits.
 
     Lifecycle:
     1. ``__init__`` stores config, settings, sub-instance tracking
@@ -63,11 +64,19 @@ class AgentRuntime:
         """Create the Agno Agent instance with model and tools.
 
         Creates the AI model via the local model factory, builds
-        instructions from identity + personality + skill summaries,
-        and registers all seven toolkits (Browser, Memory, Self,
-        Communication, Coding, DuckDuckGo, Skills).
+        instructions from identity + personality + skill summaries +
+        project assignments, and registers all eight toolkits (Browser,
+        Memory, Self, Communication, Coding, DuckDuckGo, Skills,
+        Projects).
         """
         logger.info("Initializing AgentRuntime for '%s'", self.config["name"])
+
+        # Ensure agent personal workspace directory exists
+        agent_workspace = Path(f"/workspace/agents/{self.settings.agent_id}")
+        try:
+            agent_workspace.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            logger.warning("Could not create agent workspace directory: %s", agent_workspace)
 
         # Create the AI model
         model = create_model(
@@ -98,6 +107,31 @@ class AgentRuntime:
             else:
                 instructions = skills_section.strip()
 
+        # Inject project assignments into system prompt
+        projects = self.config.get("projects", [])
+        if projects:
+            projects_section = "\n\n## Assigned Projects\n"
+            projects_section += (
+                "You are assigned to the following projects. "
+                "During heartbeat, check each project for work. "
+                "Use project_tools to get details and backup files.\n\n"
+            )
+            for p in projects:
+                projects_section += f"- **{p['project_name']}** (workspace: {p['workspace_path']})"
+                if p.get("role_prompt"):
+                    projects_section += f"\n  Role: {p['role_prompt']}"
+                if p.get("goals"):
+                    # Truncate long goals to first 200 chars for prompt
+                    goals_preview = p["goals"][:200]
+                    if len(p["goals"]) > 200:
+                        goals_preview += "..."
+                    projects_section += f"\n  Goals: {goals_preview}"
+                projects_section += "\n"
+            if instructions:
+                instructions += projects_section
+            else:
+                instructions = projects_section.strip()
+
         # Create toolkits
         self._self_tools = SelfTools(
             orchestrator_url=self.settings.orchestrator_url,
@@ -118,8 +152,8 @@ class AgentRuntime:
                 agent_id=self.settings.agent_id,
             ),
             CodingTools(
-                base_dir=Path("/workspace"),
-                restrict_to_base_dir=False,
+                base_dir=Path(f"/workspace/agents/{self.settings.agent_id}"),
+                restrict_to_base_dir=False,  # Agent can access project dirs too
                 all=True,
                 shell_timeout=120,
                 max_lines=2000,
@@ -132,6 +166,10 @@ class AgentRuntime:
                 fixed_max_results=10,
             ),
             SkillTools(
+                orchestrator_url=self.settings.orchestrator_url,
+                agent_id=self.settings.agent_id,
+            ),
+            ProjectTools(
                 orchestrator_url=self.settings.orchestrator_url,
                 agent_id=self.settings.agent_id,
             ),
@@ -194,6 +232,30 @@ class AgentRuntime:
                 self._agent.instructions += skills_section
             else:
                 self._agent.instructions = skills_section.strip()
+
+        # Re-inject project assignments after identity/personality rebuild
+        projects = self.config.get("projects", [])
+        if projects:
+            projects_section = "\n\n## Assigned Projects\n"
+            projects_section += (
+                "You are assigned to the following projects. "
+                "During heartbeat, check each project for work. "
+                "Use project_tools to get details and backup files.\n\n"
+            )
+            for p in projects:
+                projects_section += f"- **{p['project_name']}** (workspace: {p['workspace_path']})"
+                if p.get("role_prompt"):
+                    projects_section += f"\n  Role: {p['role_prompt']}"
+                if p.get("goals"):
+                    goals_preview = p["goals"][:200]
+                    if len(p["goals"]) > 200:
+                        goals_preview += "..."
+                    projects_section += f"\n  Goals: {goals_preview}"
+                projects_section += "\n"
+            if self._agent.instructions:
+                self._agent.instructions += projects_section
+            else:
+                self._agent.instructions = projects_section.strip()
 
     async def process_message(
         self,
