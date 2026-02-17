@@ -102,16 +102,26 @@ async def list_agents(
     pod_manager: PodManager = Depends(get_pod_manager),
 ) -> JSONAPIListResponse:
     """List agents with cursor-based pagination and live pod status."""
-    # Parse sort parameter
+    # Parse and validate sort parameter
     sort_desc = sort.startswith("-")
     sort_field = sort.lstrip("-")
-    if sort_field not in ("name", "created_at"):
-        sort_field = "created_at"
+    valid_sort_fields = ("name", "created_at")
+    if sort_field not in valid_sort_fields:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid sort field '{sort_field}'. Must be one of: {', '.join(valid_sort_fields)}",
+        )
+
+    # Cursor pagination only works with created_at sort.
+    # If sorting by name with a cursor, ignore the cursor.
+    effective_cursor = page_after
+    if sort_field != "created_at" and page_after is not None:
+        effective_cursor = None
 
     service = AgentService(db, pod_manager)
     agents, pagination_meta = await service.list_agents(
         page_size=page_size,
-        after=page_after,
+        after=effective_cursor,
         status_filter=filter_status,
         sort_by=sort_field,
         sort_desc=sort_desc,
@@ -120,15 +130,23 @@ async def list_agents(
     # Enrich with live K8s pod status before building response
     agents = await service.enrich_agents_with_pod_status(agents)
 
-    # Build pagination links
+    # Build pagination links preserving current filter/sort params
     base_url = str(request.url).split("?")[0]
-    links = PaginationLinks(first=f"{base_url}?page[size]={page_size}")
+    extra_params = ""
+    if filter_status:
+        extra_params += f"&filter[status]={filter_status}"
+    if sort != "created_at":
+        extra_params += f"&sort={sort}"
+
+    first_link = f"{base_url}?page[size]={page_size}{extra_params}"
+    links = PaginationLinks(first=first_link)
 
     if pagination_meta.has_next and agents:
         last_agent = agents[-1]
         next_cursor = encode_cursor(last_agent.created_at, str(last_agent.id))
         links.next = (
-            f"{base_url}?page[after]={next_cursor}&page[size]={page_size}"
+            f"{base_url}?page[after]={next_cursor}"
+            f"&page[size]={page_size}{extra_params}"
         )
 
     return JSONAPIListResponse(
