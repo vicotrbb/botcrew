@@ -1,4 +1,6 @@
-from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -36,4 +38,24 @@ class ProjectAgent(Base, UUIDPrimaryKeyMixin, AuditMixin):
     )
     agent_id: Mapped[str] = mapped_column(
         UUID(as_uuid=False), ForeignKey("agents.id"), nullable=False
+    )
+    role_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ProjectFile(Base, UUIDPrimaryKeyMixin, AuditMixin):
+    """Backed-up spec/planning file from a project workspace."""
+
+    __tablename__ = "project_files"
+    __table_args__ = (
+        UniqueConstraint("project_id", "path", name="uq_project_file_project_path"),
+    )
+
+    project_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("projects.id"), nullable=False
+    )
+    path: Mapped[str] = mapped_column(String(500), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    size: Mapped[int] = mapped_column(Integer, nullable=False)
+    last_modified: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
     )
