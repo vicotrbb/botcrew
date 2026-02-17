@@ -5,10 +5,12 @@ from fastapi import APIRouter
 from botcrew.api.v1.agents.router import router as agents_router
 from botcrew.api.v1.channels.router import router as channels_router
 from botcrew.api.v1.internal.router import router as internal_router
+from botcrew.api.v1.skills.router import router as skills_router
 from botcrew.api.v1.system.router import router as system_router
 
 v1_router = APIRouter()
 v1_router.include_router(system_router, prefix="/system", tags=["system"])
 v1_router.include_router(agents_router, prefix="/agents", tags=["agents"])
 v1_router.include_router(channels_router, prefix="/channels", tags=["channels"])
+v1_router.include_router(skills_router, prefix="/skills", tags=["skills"])
 v1_router.include_router(internal_router, prefix="/internal", tags=["internal"])
