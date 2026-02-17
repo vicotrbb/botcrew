@@ -52,3 +52,7 @@ celeryBeat:
 ## Gateway API
 gateway:
   className: cloud-provider-kind  # For local dev kind cluster
+
+## Agent Workspace
+agentWorkspace:
+  storage: 10Gi

@@ -18,10 +18,13 @@ from kubernetes_asyncio.client import (
     V1EnvVar,
     V1HTTPGetAction,
     V1ObjectMeta,
+    V1PersistentVolumeClaimVolumeSource,
     V1Pod,
     V1PodSpec,
     V1Probe,
     V1ResourceRequirements,
+    V1Volume,
+    V1VolumeMount,
 )
 
 
@@ -62,12 +65,20 @@ def build_agent_pod_spec(agent: Any, namespace: str) -> V1Pod:
         ),
     ]
 
+    # Workspace volume mount -- per-agent subdirectory on shared PVC
+    workspace_mount = V1VolumeMount(
+        name="agent-workspace",
+        mount_path="/workspace",
+        sub_path=str(agent.id),  # Per-agent subdirectory on shared PVC
+    )
+
     # Main agent container -- Dockerfile CMD runs uvicorn
     agent_container = V1Container(
         name="agent",
         image="botcrew-agent:latest",
         ports=[V1ContainerPort(container_port=8080)],
         env=env_vars,
+        volume_mounts=[workspace_mount],
         startup_probe=V1Probe(
             http_get=V1HTTPGetAction(path="/health", port=8080),
             initial_delay_seconds=10,
@@ -110,6 +121,14 @@ def build_agent_pod_spec(agent: Any, namespace: str) -> V1Pod:
         ),
     )
 
+    # Workspace volume -- shared PVC with per-agent subPath isolation
+    workspace_volume = V1Volume(
+        name="agent-workspace",
+        persistent_volume_claim=V1PersistentVolumeClaimVolumeSource(
+            claim_name="botcrew-agent-workspaces",
+        ),
+    )
+
     return V1Pod(
         metadata=V1ObjectMeta(
             name=pod_name,
@@ -129,5 +148,6 @@ def build_agent_pod_spec(agent: Any, namespace: str) -> V1Pod:
             restart_policy="Never",
             containers=[agent_container],
             init_containers=[browser_sidecar],
+            volumes=[workspace_volume],
         ),
     )

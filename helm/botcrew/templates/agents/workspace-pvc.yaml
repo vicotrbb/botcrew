@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: botcrew-agent-workspaces
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: botcrew
+    component: agent-workspaces
+spec:
+  accessModes:
+    - ReadWriteMany  # RWX -- multiple agent pods mount simultaneously
+  resources:
+    requests:
+      storage: {{ .Values.agentWorkspace.storage }}
