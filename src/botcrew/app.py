@@ -1,4 +1,4 @@
-"""FastAPI application factory with async lifespan for DB, Redis, K8s, and reconciliation."""
+"""FastAPI application factory with async lifespan for DB, Redis, K8s, WebSocket, and reconciliation."""
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -11,6 +11,8 @@ from botcrew.database import close_db, get_session_factory, init_db
 from botcrew.redis import close_redis, init_redis
 from botcrew.services.pod_manager import PodManager
 from botcrew.services.reconciliation import ReconciliationLoop
+from botcrew.ws.connection_manager import ConnectionManager
+from botcrew.ws.pubsub import PubSubManager
 
 
 @asynccontextmanager
@@ -18,9 +20,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application startup and shutdown lifecycle.
 
     On startup: initialize database engine, session factory, Redis client,
-    K8s pod manager, and reconciliation loop.
-    On shutdown: stop reconciliation, close pod manager, Redis, and database
-    (in that order to avoid using closed connections).
+    WebSocket connection manager, Redis pub/sub manager, K8s pod manager,
+    and reconciliation loop.
+    On shutdown: stop reconciliation, pub/sub manager, pod manager, Redis,
+    and database (in that order to avoid using closed connections).
     """
     settings = get_settings()
 
@@ -29,6 +32,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.db_engine = engine
     app.state.session_factory = get_session_factory(engine)
     app.state.redis = await init_redis(settings.redis_url)
+
+    # Startup -- WebSocket connection manager (in-process, per-channel tracking)
+    connection_manager = ConnectionManager()
+    app.state.connection_manager = connection_manager
+
+    # Startup -- Redis pub/sub for WebSocket fan-out (SEPARATE connection from app.state.redis)
+    pubsub_manager = PubSubManager(settings.redis_url)
+
+    async def handle_pubsub_message(channel_id: str, data: dict) -> None:
+        """Forward Redis pub/sub messages to local WebSocket connections."""
+        await connection_manager.send_to_channel(channel_id, data)
+
+    await pubsub_manager.start(handler=handle_pubsub_message)
+    app.state.pubsub_manager = pubsub_manager
 
     # Startup -- K8s Pod Manager
     pod_manager = PodManager(namespace=settings.k8s_namespace)
@@ -46,8 +63,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     yield
 
-    # Shutdown (reverse order: reconciliation -> pod_manager -> redis -> db)
+    # Shutdown (reverse order: reconciliation -> pubsub -> pod_manager -> redis -> db)
     await app.state.reconciliation.stop()
+    await app.state.pubsub_manager.stop()
     await app.state.pod_manager.close()
     await close_redis(app.state.redis)
     await close_db(engine)
@@ -70,5 +88,11 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(v1_router, prefix="/api/v1")
+
+    # WebSocket router mounted at root (not under /api/v1) because the
+    # HTTPRoute in Helm routes /ws/* separately from /api/* traffic.
+    from botcrew.api.v1.channels.ws import router as ws_router
+
+    app.include_router(ws_router)
 
     return app
