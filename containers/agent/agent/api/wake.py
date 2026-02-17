@@ -25,8 +25,9 @@ class WakeResponse(BaseModel):
 async def wake(request: Request) -> WakeResponse | JSONResponse:
     """Process the heartbeat prompt through the Agno agent.
 
-    Uses the heartbeat_prompt from the boot config as input, passing
-    it through the same process_message() pipeline as /message.
+    Reads the heartbeat_prompt dynamically from the HeartbeatTimer
+    (SelfTools may have changed it at runtime).  Falls back to boot
+    config if heartbeat timer is not available.
 
     Returns:
         WakeResponse with the agent's response and its ID.
@@ -39,14 +40,20 @@ async def wake(request: Request) -> WakeResponse | JSONResponse:
             content={"detail": "Agent runtime is not ready"},
         )
 
-    config: dict = request.app.state.config
-    heartbeat_prompt = config.get(
-        "heartbeat_prompt",
-        "You are waking up. Check your memory and decide what to do next.",
-    )
+    # Read heartbeat prompt dynamically (SelfTools may have changed it)
+    heartbeat = getattr(request.app.state, "heartbeat", None)
+    if heartbeat is not None:
+        heartbeat_prompt = heartbeat.prompt
+    else:
+        config: dict = request.app.state.config
+        heartbeat_prompt = config.get(
+            "heartbeat_prompt",
+            "You are waking up. Check your memory and decide what to do next.",
+        )
 
     response = await runtime.process_message(heartbeat_prompt)
 
+    config = request.app.state.config
     return WakeResponse(
         content=response,
         agent_id=config.get("agent_id", getattr(request.app.state, "agent_id", "unknown")),

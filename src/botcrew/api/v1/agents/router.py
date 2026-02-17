@@ -3,10 +3,16 @@
 Provides create, list, get, update, delete, and duplicate operations
 for agents. List and detail endpoints enrich status from live Kubernetes
 pod state before responding.
+
+The PATCH endpoint pushes heartbeat config changes to the running agent
+container via fire-and-forget POST to the agent's /config-update endpoint.
 """
 
 from __future__ import annotations
 
+import logging
+
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +27,8 @@ from botcrew.schemas.jsonapi import (
 from botcrew.schemas.pagination import PaginationLinks, encode_cursor
 from botcrew.services.agent_service import AgentService
 from botcrew.services.pod_manager import PodManager
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -189,6 +197,30 @@ async def update_agent(
         if "not found" in msg.lower():
             raise HTTPException(status_code=404, detail=msg) from exc
         raise HTTPException(status_code=422, detail=msg) from exc
+
+    # Push heartbeat config changes to running agent (fire-and-forget)
+    heartbeat_fields = {
+        "heartbeat_interval_seconds",
+        "heartbeat_prompt",
+        "heartbeat_enabled",
+    }
+    config_changes = {k: v for k, v in update_data.items() if k in heartbeat_fields}
+    if config_changes:
+        pod_url = (
+            f"http://agent-{agent_id}.botcrew-agents"
+            f".botcrew.svc.cluster.local:8080"
+        )
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                await client.post(
+                    f"{pod_url}/config-update", json=config_changes,
+                )
+        except Exception:
+            logger.warning(
+                "Failed to push config update to agent %s "
+                "(agent may be offline)",
+                agent_id,
+            )
 
     return JSONAPISingleResponse(data=_agent_resource(agent, detail=True))
 

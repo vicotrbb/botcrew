@@ -1,16 +1,17 @@
 """Agent container FastAPI application.
 
-Factory function creates the app, wires health/wake/message routers,
-and runs the boot sequence + AgentRuntime initialization in the
-lifespan context manager.
+Factory function creates the app, wires health/wake/message/spawn/config-update
+routers, and runs the boot sequence + AgentRuntime initialization + HeartbeatTimer
+start/stop in the lifespan context manager.
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
+import httpx
 from fastapi import FastAPI
 
 from agent.agent_runtime import AgentRuntime
@@ -19,6 +20,7 @@ from agent.api.message import router as message_router
 from agent.api.wake import router as wake_router
 from agent.boot import boot_agent
 from agent.config import get_settings
+from agent.heartbeat import HeartbeatTimer
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +41,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     - model_provider: model provider string
     - config: full config dict from orchestrator
     - runtime: AgentRuntime instance (available after successful boot)
+    - heartbeat: HeartbeatTimer instance (available after successful boot)
     """
     settings = get_settings()
 
@@ -49,6 +52,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.model_provider = settings.model_provider
     app.state.config = None
     app.state.runtime = None
+    app.state.heartbeat = None
 
     try:
         # Step 1: Boot sequence (fetch config, self-checks, report status)
@@ -60,6 +64,39 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await runtime.initialize()
         app.state.runtime = runtime
 
+        # Step 3: Create activity logging callback (fire-and-forget via httpx)
+        async def log_activity(event_type: str, details: dict) -> None:
+            try:
+                async with httpx.AsyncClient(timeout=5) as client:
+                    await client.post(
+                        f"{settings.orchestrator_url}/api/v1/internal/agents/{settings.agent_id}/activities",
+                        json={
+                            "event_type": event_type,
+                            "summary": f"Heartbeat: {event_type}",
+                            "details": details,
+                        },
+                    )
+            except Exception:
+                pass  # Activity logging must never block
+
+        # Step 4: Create and start heartbeat timer
+        heartbeat = HeartbeatTimer(
+            runtime=runtime,
+            interval=config.get("heartbeat_interval_seconds", 300),
+            prompt=config.get(
+                "heartbeat_prompt",
+                "Wake up and check for new messages. Review any active projects. "
+                "If there's work to do, do it. If not, reflect on what you could improve or learn.",
+            ),
+            on_activity=log_activity,
+        )
+        runtime.set_heartbeat(heartbeat)  # Wire heartbeat ref into runtime + SelfTools
+
+        if config.get("heartbeat_enabled", True):
+            await heartbeat.start()
+
+        app.state.heartbeat = heartbeat
+
         app.state.boot_status = "healthy"
         app.state.browser_connected = True
         logger.info("Agent '%s' boot complete -- status: healthy", settings.agent_name)
@@ -69,11 +106,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     yield
 
+    # Shutdown: stop heartbeat timer cleanly
+    if app.state.heartbeat is not None:
+        await app.state.heartbeat.stop()
+
     logger.info("Agent '%s' shutting down", settings.agent_name)
 
 
 def create_app() -> FastAPI:
     """Create and configure the agent FastAPI application."""
+    from agent.api.config_update import router as config_update_router
+    from agent.api.spawn import router as spawn_router
+
     app = FastAPI(
         title="Botcrew Agent",
         description="AI agent container runtime",
@@ -86,5 +130,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(wake_router)
     app.include_router(message_router)
+    app.include_router(spawn_router)
+    app.include_router(config_update_router)
 
     return app
