@@ -65,11 +65,12 @@ def build_agent_pod_spec(agent: Any, namespace: str) -> V1Pod:
         ),
     ]
 
-    # Workspace volume mount -- per-agent subdirectory on shared PVC
+    # Workspace volume mount -- full PVC mount with directory convention
     workspace_mount = V1VolumeMount(
         name="agent-workspace",
         mount_path="/workspace",
-        sub_path=str(agent.id),  # Per-agent subdirectory on shared PVC
+        # Full PVC mount -- agent personal dir at /workspace/agents/{agent.id}/
+        # Project dirs at /workspace/projects/{project_id}/
     )
 
     # Main agent container -- Dockerfile CMD runs uvicorn
@@ -121,7 +122,7 @@ def build_agent_pod_spec(agent: Any, namespace: str) -> V1Pod:
         ),
     )
 
-    # Workspace volume -- shared PVC with per-agent subPath isolation
+    # Workspace volume -- shared PVC with directory convention
     workspace_volume = V1Volume(
         name="agent-workspace",
         persistent_volume_claim=V1PersistentVolumeClaimVolumeSource(
