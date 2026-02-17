@@ -1,4 +1,4 @@
-export type ChannelType = 'shared' | 'direct';
+export type ChannelType = 'shared' | 'custom' | 'direct';
 
 export interface Channel {
   id: string;
