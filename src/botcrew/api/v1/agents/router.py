@@ -203,3 +203,12 @@ async def duplicate_agent(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return JSONAPISingleResponse(data=_agent_resource(agent, detail=True))
+
+
+# ---------------------------------------------------------------------------
+# Sub-resource routers
+# ---------------------------------------------------------------------------
+
+from botcrew.api.v1.agents.memory_router import router as memory_router  # noqa: E402
+
+router.include_router(memory_router, tags=["agent-memory"])
