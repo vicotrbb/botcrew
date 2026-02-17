@@ -12,6 +12,23 @@ spec:
   policyTypes:
     - Ingress
 ---
+# Allow frontend to receive traffic (from gateway)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-ingress
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: botcrew-frontend
+  ingress:
+    - ports:
+        - port: {{ .Values.frontend.port }}
+          protocol: TCP
+---
 # Allow orchestrator to receive traffic (from gateway, agents, etc.)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

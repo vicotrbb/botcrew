@@ -9,6 +9,7 @@ spec:
   parentRefs:
     - name: botcrew-gateway
   rules:
+    # API routes -> orchestrator
     - matches:
         - path:
             type: PathPrefix
@@ -16,6 +17,7 @@ spec:
       backendRefs:
         - name: botcrew-orchestrator
           port: {{ .Values.orchestrator.port }}
+    # WebSocket routes -> orchestrator
     - matches:
         - path:
             type: PathPrefix
@@ -23,3 +25,11 @@ spec:
       backendRefs:
         - name: botcrew-orchestrator
           port: {{ .Values.orchestrator.port }}
+    # Frontend catch-all (must be last)
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: botcrew-frontend
+          port: {{ .Values.frontend.port }}

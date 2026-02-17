@@ -53,6 +53,13 @@ celeryBeat:
 gateway:
   className: cloud-provider-kind  # For local dev kind cluster
 
+## Frontend
+frontend:
+  image: botcrew-frontend:latest
+  port: 80
+  replicas: 1
+  imagePullPolicy: Never  # For local kind cluster
+
 ## Agent Workspace
 agentWorkspace:
   storage: 10Gi
