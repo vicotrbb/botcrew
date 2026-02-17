@@ -9,6 +9,9 @@ Not intended for external API consumers.
 from __future__ import annotations
 
 import logging
+import os
+from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -16,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from botcrew.api.deps import get_db, get_pod_manager
 from botcrew.models.agent import Agent
+from botcrew.models.project import Project, ProjectAgent, ProjectFile
 from botcrew.models.skill import Skill
 from botcrew.schemas.internal import (
     ActivityCreateRequest,
@@ -325,3 +329,146 @@ async def create_agent_skill(
     await db.commit()
 
     return {"data": {"name": skill.name, "id": str(skill.id)}}
+
+
+# ---------------------------------------------------------------------------
+# Internal project endpoints (Phase 7)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/agents/{agent_id}/projects")
+async def list_agent_projects(
+    agent_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List active project assignments for an agent.
+
+    Returns project details including goals, specs, role_prompt, and
+    the workspace path where the project is mounted inside the agent pod.
+    """
+    result = await db.execute(
+        select(ProjectAgent, Project)
+        .join(Project, ProjectAgent.project_id == Project.id)
+        .where(ProjectAgent.agent_id == agent_id)
+        .where(Project.status == "active")
+    )
+    data = [
+        {
+            "project_id": str(pa.project_id),
+            "project_name": proj.name,
+            "goals": proj.goals,
+            "specs": proj.specs,
+            "role_prompt": pa.role_prompt,
+            "workspace_path": f"/workspace/projects/{pa.project_id}",
+            "channel_id": str(proj.channel_id) if proj.channel_id else None,
+        }
+        for pa, proj in result.all()
+    ]
+    return {"data": data}
+
+
+@router.get("/agents/{agent_id}/projects/{project_id}")
+async def get_agent_project(
+    agent_id: str,
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get details for a specific project assigned to an agent.
+
+    Returns 404 if the project does not exist or the agent is not assigned.
+    """
+    result = await db.execute(
+        select(ProjectAgent, Project)
+        .join(Project, ProjectAgent.project_id == Project.id)
+        .where(ProjectAgent.agent_id == agent_id)
+        .where(ProjectAgent.project_id == project_id)
+        .where(Project.status == "active")
+    )
+    row = result.first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Project assignment not found")
+    pa, proj = row
+    return {
+        "data": {
+            "project_id": str(pa.project_id),
+            "project_name": proj.name,
+            "goals": proj.goals,
+            "specs": proj.specs,
+            "role_prompt": pa.role_prompt,
+            "workspace_path": f"/workspace/projects/{pa.project_id}",
+            "channel_id": str(proj.channel_id) if proj.channel_id else None,
+        }
+    }
+
+
+@router.post("/agents/{agent_id}/projects/{project_id}/backup")
+async def backup_project_files(
+    agent_id: str,
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Backup spec files from agent workspace to the database.
+
+    Reads all ``.md`` files from the project's ``.botcrew/`` directory
+    and upserts them into the ``project_files`` table.  Returns the count
+    of files backed up.  Gracefully handles missing directories.
+    """
+    # Verify agent is assigned to this project
+    assignment = await db.execute(
+        select(ProjectAgent).where(
+            ProjectAgent.agent_id == agent_id,
+            ProjectAgent.project_id == project_id,
+        )
+    )
+    if assignment.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=403, detail="Agent is not assigned to this project"
+        )
+
+    workspace_dir = Path(f"/workspace/projects/{project_id}/.botcrew")
+    count = 0
+
+    try:
+        if not workspace_dir.is_dir():
+            return {"data": {"files_backed_up": 0, "project_id": project_id}}
+
+        for filepath in workspace_dir.glob("*.md"):
+            if not filepath.is_file():
+                continue
+            content = filepath.read_text()
+            size = os.path.getsize(filepath)
+            last_modified = datetime.fromtimestamp(
+                os.path.getmtime(filepath), tz=timezone.utc
+            )
+            # Relative path from project workspace root
+            rel_path = str(filepath.relative_to(f"/workspace/projects/{project_id}"))
+
+            # Upsert: check for existing file record
+            existing_result = await db.execute(
+                select(ProjectFile).where(
+                    ProjectFile.project_id == project_id,
+                    ProjectFile.path == rel_path,
+                )
+            )
+            existing = existing_result.scalar_one_or_none()
+            if existing:
+                existing.content = content
+                existing.size = size
+                existing.last_modified = last_modified
+            else:
+                db.add(
+                    ProjectFile(
+                        project_id=project_id,
+                        path=rel_path,
+                        content=content,
+                        size=size,
+                        last_modified=last_modified,
+                    )
+                )
+            count += 1
+
+        await db.commit()
+    except (OSError, FileNotFoundError):
+        return {"data": {"files_backed_up": 0, "project_id": project_id}}
+
+    return {"data": {"files_backed_up": count, "project_id": project_id}}
