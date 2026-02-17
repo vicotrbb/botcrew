@@ -14,8 +14,8 @@ class BootConfigResponse(BaseModel):
     """Full boot configuration returned to an agent container at startup.
 
     Includes agent identity, model settings, heartbeat config, current memory,
-    and all system secrets (API keys). The agent container uses these to
-    initialise its model provider and begin operation.
+    all system secrets (API keys), and summaries of active skills. The agent
+    container uses these to initialise its model provider and begin operation.
     """
 
     agent_id: str
@@ -31,6 +31,10 @@ class BootConfigResponse(BaseModel):
     secrets: dict[str, str] = Field(
         default_factory=dict,
         description="System-wide API keys, e.g. {'ANTHROPIC_API_KEY': 'sk-...'}",
+    )
+    skills: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="Active skill summaries: [{'name': ..., 'description': ...}]",
     )
 
 
@@ -120,3 +124,18 @@ class ActivityCreateResponse(BaseModel):
     id: str
     event_type: str
     created_at: str
+
+
+# --- Skill schemas (Phase 6) ---
+
+
+class SkillCreateFromAgentRequest(BaseModel):
+    """Request body for an agent creating a new skill.
+
+    Used by POST /api/v1/internal/agents/{id}/skills to allow agents
+    to contribute skills to the global library.
+    """
+
+    name: str
+    description: str = Field(..., max_length=250)
+    body: str

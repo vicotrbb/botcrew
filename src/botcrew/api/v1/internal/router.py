@@ -11,10 +11,12 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from botcrew.api.deps import get_db, get_pod_manager
 from botcrew.models.agent import Agent
+from botcrew.models.skill import Skill
 from botcrew.schemas.internal import (
     ActivityCreateRequest,
     ActivityCreateResponse,
@@ -22,6 +24,7 @@ from botcrew.schemas.internal import (
     SelfInfoResponse,
     SelfUpdateRequest,
     SelfUpdateResponse,
+    SkillCreateFromAgentRequest,
     StatusReportRequest,
     StatusReportResponse,
 )
@@ -53,6 +56,17 @@ async def get_boot_config(
 
     secrets = await service.get_system_secrets()
 
+    # Fetch active skill summaries for boot-time awareness
+    skills_result = await db.execute(
+        select(Skill.name, Skill.description)
+        .where(Skill.is_active.is_(True))
+        .order_by(Skill.name)
+    )
+    skill_summaries = [
+        {"name": row.name, "description": row.description}
+        for row in skills_result.all()
+    ]
+
     return BootConfigResponse(
         agent_id=str(agent.id),
         name=agent.name,
@@ -65,6 +79,7 @@ async def get_boot_config(
         heartbeat_enabled=agent.heartbeat_enabled,
         memory=agent.memory,
         secrets=secrets,
+        skills=skill_summaries,
     )
 
 
@@ -222,3 +237,91 @@ async def create_activity(
         event_type=activity.event_type,
         created_at=str(activity.created_at),
     )
+
+
+# ---------------------------------------------------------------------------
+# Internal skill endpoints (Phase 6)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/agents/{agent_id}/skills")
+async def list_agent_skills(
+    agent_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List all active skills (name + description) for agent toolkit access.
+
+    Returns a lightweight summary list so agents know which skills are
+    available without loading full bodies.
+    """
+    result = await db.execute(
+        select(Skill).where(Skill.is_active.is_(True)).order_by(Skill.name)
+    )
+    skills = result.scalars().all()
+    return {"data": [{"name": s.name, "description": s.description} for s in skills]}
+
+
+@router.get("/agents/{agent_id}/skills/{skill_name}")
+async def get_agent_skill(
+    agent_id: str,
+    skill_name: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Load a single skill by name with full body content.
+
+    Used by SkillTools.load_skill() to fetch the complete markdown body
+    of a skill for the agent to execute.
+    """
+    result = await db.execute(
+        select(Skill).where(
+            Skill.name == skill_name.lower(), Skill.is_active.is_(True)
+        )
+    )
+    skill = result.scalar_one_or_none()
+    if skill is None:
+        raise HTTPException(
+            status_code=404, detail=f"Skill not found: {skill_name}"
+        )
+    return {
+        "data": {
+            "name": skill.name,
+            "description": skill.description,
+            "body": skill.body,
+        }
+    }
+
+
+@router.post("/agents/{agent_id}/skills", status_code=201)
+async def create_agent_skill(
+    agent_id: str,
+    body: SkillCreateFromAgentRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Create a new skill from an agent.
+
+    Allows agents to contribute skills to the global library.
+    Logs an activity record for audit trail.
+    """
+    skill = Skill(
+        name=body.name.strip().lower(),
+        description=body.description,
+        body=body.body,
+    )
+    db.add(skill)
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409, detail=f"Skill '{body.name}' already exists"
+        )
+
+    activity_service = ActivityService(db)
+    await activity_service.log_activity(
+        agent_id=agent_id,
+        event_type="skill_created",
+        summary=f"Created skill: {body.name}",
+    )
+    await db.commit()
+
+    return {"data": {"name": skill.name, "id": str(skill.id)}}
