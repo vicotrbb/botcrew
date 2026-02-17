@@ -15,6 +15,7 @@ class Channel(Base, UUIDPrimaryKeyMixin, AuditMixin):
     channel_type: Mapped[str] = mapped_column(
         String(20), server_default="shared", nullable=False
     )
+    creator_user_identifier: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class ChannelMember(Base, UUIDPrimaryKeyMixin, AuditMixin):
@@ -23,6 +24,7 @@ class ChannelMember(Base, UUIDPrimaryKeyMixin, AuditMixin):
     __tablename__ = "channel_members"
     __table_args__ = (
         UniqueConstraint("channel_id", "agent_id", name="uq_channel_member_channel_agent"),
+        UniqueConstraint("channel_id", "user_identifier", name="uq_channel_member_channel_user"),
     )
 
     channel_id: Mapped[str] = mapped_column(

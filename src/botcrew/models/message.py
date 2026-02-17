@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import JSON, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,3 +21,4 @@ class Message(Base, UUIDPrimaryKeyMixin, AuditMixin):
     message_type: Mapped[str] = mapped_column(
         String(20), server_default="chat", nullable=False
     )
+    metadata_: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)
