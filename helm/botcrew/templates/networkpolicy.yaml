@@ -133,3 +133,108 @@ spec:
       ports:
         - port: {{ .Values.postgres.port }}
           protocol: TCP
+---
+# Allow Celery worker to reach Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-from-celery-worker
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: botcrew-redis
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: botcrew-celery-worker
+      ports:
+        - port: {{ .Values.redis.port }}
+          protocol: TCP
+---
+# Allow Celery Beat to reach Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-from-celery-beat
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: botcrew-redis
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: botcrew-celery-beat
+      ports:
+        - port: {{ .Values.redis.port }}
+          protocol: TCP
+---
+# Allow Celery Beat to reach Postgres (for DB-backed scheduler)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-from-celery-beat
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: botcrew-postgres
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: botcrew-celery-beat
+      ports:
+        - port: {{ .Values.postgres.port }}
+          protocol: TCP
+---
+# Allow Celery worker to reach agent pods (DM delivery via POST /message)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-agent-from-celery-worker
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: botcrew-agent
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: botcrew-celery-worker
+      ports:
+        - port: 8080
+          protocol: TCP
+---
+# Allow Celery worker to reach Postgres
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-from-celery-worker
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "botcrew.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: botcrew-postgres
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: botcrew-celery-worker
+      ports:
+        - port: {{ .Values.postgres.port }}
+          protocol: TCP
