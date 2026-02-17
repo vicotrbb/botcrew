@@ -36,6 +36,10 @@ class BootConfigResponse(BaseModel):
         default_factory=list,
         description="Active skill summaries: [{'name': ..., 'description': ...}]",
     )
+    projects: list[ProjectAssignmentBoot] = Field(
+        default_factory=list,
+        description="Active project assignments with goals, specs, and workspace paths",
+    )
 
 
 class StatusReportRequest(BaseModel):
@@ -139,3 +143,18 @@ class SkillCreateFromAgentRequest(BaseModel):
     name: str
     description: str = Field(..., max_length=250)
     body: str
+
+
+# --- Project schemas (Phase 7) ---
+
+
+class ProjectAssignmentBoot(BaseModel):
+    """Project assignment info included in agent boot-config."""
+
+    project_id: str
+    project_name: str
+    goals: str | None = None
+    specs: str | None = None
+    role_prompt: str | None = None
+    workspace_path: str
+    channel_id: str | None = None

@@ -25,6 +25,7 @@ from botcrew.schemas.internal import (
     ActivityCreateRequest,
     ActivityCreateResponse,
     BootConfigResponse,
+    ProjectAssignmentBoot,
     SelfInfoResponse,
     SelfUpdateRequest,
     SelfUpdateResponse,
@@ -71,6 +72,26 @@ async def get_boot_config(
         for row in skills_result.all()
     ]
 
+    # Fetch active project assignments for this agent
+    projects_result = await db.execute(
+        select(ProjectAgent, Project)
+        .join(Project, ProjectAgent.project_id == Project.id)
+        .where(ProjectAgent.agent_id == agent_id)
+        .where(Project.status == "active")
+    )
+    project_assignments = [
+        ProjectAssignmentBoot(
+            project_id=str(pa.project_id),
+            project_name=proj.name,
+            goals=proj.goals,
+            specs=proj.specs,
+            role_prompt=pa.role_prompt,
+            workspace_path=f"/workspace/projects/{pa.project_id}",
+            channel_id=str(proj.channel_id) if proj.channel_id else None,
+        )
+        for pa, proj in projects_result.all()
+    ]
+
     return BootConfigResponse(
         agent_id=str(agent.id),
         name=agent.name,
@@ -84,6 +105,7 @@ async def get_boot_config(
         memory=agent.memory,
         secrets=secrets,
         skills=skill_summaries,
+        projects=project_assignments,
     )
 
 
