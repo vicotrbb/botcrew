@@ -2,7 +2,7 @@
 
 These schemas define the request/response models for cluster-internal endpoints
 that agent containers call during boot (to fetch configuration) and runtime
-(to report status back to the orchestrator).
+(to report status, read/update self config, and log activities).
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ class BootConfigResponse(BaseModel):
     model_name: str
     heartbeat_prompt: str
     heartbeat_interval_seconds: int
+    heartbeat_enabled: bool
     memory: str
     secrets: dict[str, str] = Field(
         default_factory=dict,
@@ -59,3 +60,63 @@ class StatusReportResponse(BaseModel):
     """Acknowledgement returned after processing an agent status report."""
 
     acknowledged: bool = True
+
+
+# --- Self-modification schemas (Phase 5) ---
+
+
+class SelfInfoResponse(BaseModel):
+    """Current self-modifiable agent configuration.
+
+    Returned by GET /agents/{agent_id}/self for SelfTools.get_self_info().
+    """
+
+    agent_id: str
+    name: str
+    identity: str
+    personality: str
+    heartbeat_prompt: str
+    heartbeat_interval_seconds: int
+    heartbeat_enabled: bool
+
+
+class SelfUpdateRequest(BaseModel):
+    """Partial update to agent self-modifiable fields.
+
+    All fields are optional -- only provided fields are updated.
+    Note: ``name`` is deliberately EXCLUDED. An agent can never modify
+    its own name (per CONTEXT.md design decision).
+    """
+
+    identity: str | None = None
+    personality: str | None = None
+    heartbeat_prompt: str | None = None
+    heartbeat_interval_seconds: int | None = Field(
+        default=None,
+        ge=300,
+        le=86400,
+        description="Heartbeat interval in seconds (300s min, 86400s max)",
+    )
+
+
+class SelfUpdateResponse(BaseModel):
+    """Acknowledgement of a self-update with list of changed fields."""
+
+    status: str = "updated"
+    fields_updated: list[str]
+
+
+class ActivityCreateRequest(BaseModel):
+    """Request body for logging an agent activity."""
+
+    event_type: str = Field(..., max_length=50)
+    summary: str = ""
+    details: dict | None = None
+
+
+class ActivityCreateResponse(BaseModel):
+    """Response after creating an activity record."""
+
+    id: str
+    event_type: str
+    created_at: str
