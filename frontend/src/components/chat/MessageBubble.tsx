@@ -37,7 +37,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       <div className="flex flex-row items-start gap-2 max-w-[75%]">
         <div className="flex-shrink-0 mt-1">
           <Avatar
-            name={message.sender_agent_id}
+            name={message.sender_agent_id ?? undefined}
             size={28}
             variant="beam"
             colors={['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#e0e7ff']}
