@@ -48,3 +48,7 @@ docker-compose.override.yml
 
 # Planning
 .planning/
+
+# Node / Frontend
+node_modules/
+frontend/dist/
