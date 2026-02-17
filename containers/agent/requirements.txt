@@ -1,4 +1,4 @@
-agno[anthropic,ollama,openai]>=2.5.2
+agno[anthropic,ollama,openai,ddg]>=2.5.2
 fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
 httpx>=0.28.0

@@ -29,6 +29,15 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
+# Install Node.js 20 LTS and git for code execution and version control
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl ca-certificates git && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    apt-get purge -y curl && \
+    apt-get autoremove -y && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Copy agent source code
 COPY agent/ agent/
 
