@@ -1,3 +1,4 @@
+from botcrew.models.activity import Activity
 from botcrew.models.agent import Agent
 from botcrew.models.base import AuditMixin, Base, UUIDPrimaryKeyMixin
 from botcrew.models.channel import Channel, ChannelMember
@@ -12,6 +13,7 @@ __all__ = [
     "Base",
     "UUIDPrimaryKeyMixin",
     "AuditMixin",
+    "Activity",
     "Agent",
     "Channel",
     "ChannelMember",
