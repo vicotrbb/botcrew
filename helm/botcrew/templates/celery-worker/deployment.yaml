@@ -40,6 +40,9 @@ spec:
               value: "redis://botcrew-redis:{{ .Values.redis.port }}/0"
             - name: BOTCREW_CELERY_BEAT_DBURI
               value: "postgresql://{{ .Values.postgres.user }}:{{ .Values.postgres.password }}@botcrew-postgres:{{ .Values.postgres.port }}/{{ .Values.postgres.database }}"
+          volumeMounts:
+            - name: agent-workspace
+              mountPath: /workspace
           resources:
             requests:
               cpu: {{ .Values.celeryWorker.resources.requests.cpu }}
@@ -47,3 +50,7 @@ spec:
             limits:
               cpu: {{ .Values.celeryWorker.resources.limits.cpu }}
               memory: {{ .Values.celeryWorker.resources.limits.memory }}
+      volumes:
+        - name: agent-workspace
+          persistentVolumeClaim:
+            claimName: botcrew-agent-workspaces
