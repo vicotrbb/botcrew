@@ -49,8 +49,31 @@ export const sendMessageSchema = z.object({
 });
 
 /**
+ * Zod schema for secret creation form validation.
+ */
+export const createSecretSchema = z.object({
+  key: z.string().min(1, 'Key is required').max(255, 'Key must be 255 characters or fewer')
+    .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Key must be a valid identifier (letters, digits, underscores)'),
+  value: z.string().min(1, 'Value is required'),
+  description: z.string().optional(),
+});
+
+/**
+ * Zod schema for secret update form validation. All fields optional.
+ */
+export const updateSecretSchema = z.object({
+  key: z.string().min(1).max(255)
+    .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Key must be a valid identifier')
+    .optional(),
+  value: z.string().min(1).optional(),
+  description: z.string().optional(),
+});
+
+/**
  * Inferred types from Zod schemas for form usage.
  */
 export type CreateAgentInput = z.infer<typeof createAgentSchema>;
 export type UpdateAgentInput = z.infer<typeof updateAgentSchema>;
 export type CreateChannelInput = z.infer<typeof createChannelSchema>;
+export type CreateSecretInput = z.infer<typeof createSecretSchema>;
+export type UpdateSecretInput = z.infer<typeof updateSecretSchema>;
