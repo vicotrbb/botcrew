@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from agno.agent import Agent
+from agno.db.sqlite import SqliteDb
 from agno.tools.coding import CodingTools
 from agno.tools.duckduckgo import DuckDuckGoTools
 
@@ -77,6 +78,11 @@ class AgentRuntime:
             agent_workspace.mkdir(parents=True, exist_ok=True)
         except OSError:
             logger.warning("Could not create agent workspace directory: %s", agent_workspace)
+
+        # SQLite database for conversation history persistence
+        agent_db = SqliteDb(
+            db_file=str(agent_workspace / "history.db"),
+        )
 
         # Create the AI model
         model = create_model(
@@ -182,8 +188,9 @@ class AgentRuntime:
             description=self.config.get("identity", ""),
             instructions=instructions,
             tools=tools,
+            db=agent_db,
             add_history_to_context=True,
-            num_history_messages=20,
+            num_history_runs=3,
             add_datetime_to_context=True,
             markdown=True,
         )

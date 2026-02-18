@@ -31,7 +31,5 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     beat_scheduler="sqlalchemy_celery_beat.schedulers:DatabaseScheduler",
     beat_dburi=settings.celery_beat_dburi,
+    include=["botcrew.tasks.messaging", "botcrew.tasks.projects"],
 )
-
-# Auto-discover tasks in the botcrew.tasks package
-celery_app.autodiscover_tasks(["botcrew.tasks"])

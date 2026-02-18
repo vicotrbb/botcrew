@@ -226,7 +226,15 @@ class CommunicationTools(Toolkit):
             result = self._request(
                 "POST",
                 url,
-                json_data={"content": content},
+                json_data={
+                    "data": {
+                        "type": "messages",
+                        "attributes": {
+                            "content": content,
+                            "message_type": "chat",
+                        },
+                    }
+                },
                 params={"sender_agent_id": self.agent_id},
             )
             if result is None:
@@ -250,7 +258,15 @@ class CommunicationTools(Toolkit):
             result = self._request(
                 "POST",
                 url,
-                json_data={"content": content},
+                json_data={
+                    "data": {
+                        "type": "messages",
+                        "attributes": {
+                            "content": content,
+                            "message_type": "chat",
+                        },
+                    }
+                },
                 params={"sender_user_identifier": f"agent:{self.agent_id}"},
             )
             if result is None:

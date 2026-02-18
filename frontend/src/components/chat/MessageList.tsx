@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { ConnectionStatus } from '@/hooks/use-websocket';
 import { useMessages } from '@/hooks/use-messages';
+import { useAgents } from '@/hooks/use-agents';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageBubble } from './MessageBubble';
 import { Loader2 } from 'lucide-react';
@@ -12,7 +13,17 @@ interface MessageListProps {
 
 export function MessageList({ channelId, wsStatus }: MessageListProps) {
   const messages = useMessages(channelId);
+  const agents = useAgents();
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Build agent ID -> name lookup map
+  const agentNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const agent of agents.data ?? []) {
+      map.set(agent.id, agent.name);
+    }
+    return map;
+  }, [agents.data]);
 
   // API returns newest first -- reverse for chronological display (oldest at top)
   const chronologicalMessages = useMemo(
@@ -62,10 +73,10 @@ export function MessageList({ channelId, wsStatus }: MessageListProps) {
   }
 
   return (
-    <ScrollArea className="flex-1">
+    <ScrollArea className="flex-1 min-h-0">
       <div className="flex flex-col gap-3 p-4">
         {chronologicalMessages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
+          <MessageBubble key={message.id} message={message} agentNames={agentNames} />
         ))}
         <div ref={bottomRef} />
       </div>

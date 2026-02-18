@@ -10,13 +10,13 @@ import shutil
 import subprocess
 
 import sqlalchemy
-from celery import shared_task
+from botcrew.tasks.celery_app import celery_app
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(
+@celery_app.task(
     bind=True,
     max_retries=3,
     default_retry_delay=10,
@@ -65,7 +65,7 @@ def clone_github_repo(self, project_id: str, repo_url: str) -> dict:
         raise self.retry(exc=exc)
 
 
-@shared_task(bind=True, max_retries=1)
+@celery_app.task(bind=True, max_retries=1)
 def pull_github_repo(self, project_id: str) -> dict:
     """Pull latest changes from remote into project workspace.
 
@@ -101,7 +101,7 @@ def pull_github_repo(self, project_id: str) -> dict:
         raise self.retry(exc=exc)
 
 
-@shared_task(bind=True, max_retries=1)
+@celery_app.task(bind=True, max_retries=1)
 def cleanup_project_workspace(self, project_id: str) -> dict:
     """Remove project directory from workspace PVC.
 
@@ -126,7 +126,7 @@ def cleanup_project_workspace(self, project_id: str) -> dict:
         raise self.retry(exc=exc)
 
 
-@shared_task(bind=True, max_retries=2, default_retry_delay=5)
+@celery_app.task(bind=True, max_retries=2, default_retry_delay=5)
 def finalize_agent_removal(self, project_id: str, agent_id: str) -> dict:
     """Finalize agent removal from a project after grace period.
 

@@ -16,7 +16,7 @@ export function MainLayout() {
         <Outlet />
       </main>
       {isChatOpen && (
-        <aside className="w-[380px] border-l border-border flex-shrink-0">
+        <aside className="w-[380px] border-l border-border flex-shrink-0 h-screen overflow-hidden">
           <ChatPanel />
         </aside>
       )}

@@ -28,9 +28,32 @@ export function useWebSocket(channelId: string | null) {
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
 
-  const connect = useCallback(
-    (chId: string) => {
-      // Close existing connection
+  useEffect(() => {
+    // Clear any pending retry timer from a previous channel
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+
+    // Close existing connection from a previous channel
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    retryCountRef.current = 0;
+
+    if (!channelId) {
+      // No channel selected -- nothing to connect to. Status will be
+      // set to 'disconnected' by the onclose callback of the connection
+      // we just closed above, or it's already 'disconnected' on mount.
+      return;
+    }
+
+    const chId = channelId;
+
+    function openConnection() {
+      // Close any connection still held in wsRef (e.g. from a retry cycle)
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
@@ -39,12 +62,13 @@ export function useWebSocket(channelId: string | null) {
       const clientId = getClientId();
       const url = `${WS_BASE_URL}/ws/channels/${chId}?client_id=${encodeURIComponent(clientId)}`;
 
-      setStatus(retryCountRef.current > 0 ? 'reconnecting' : 'connecting');
-
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
       ws.onopen = () => {
+        // Guard: only update status if this WS is still the active one.
+        // A channel switch may have replaced wsRef.current already.
+        if (wsRef.current !== ws) return;
         retryCountRef.current = 0;
         setStatus('connected');
       };
@@ -61,6 +85,13 @@ export function useWebSocket(channelId: string | null) {
       };
 
       ws.onclose = () => {
+        // Guard: only update state if this WS is still the active one.
+        // When the user switches channels, the cleanup function closes this
+        // WS and wsRef.current is set to the new channel's WS. The old WS's
+        // onclose fires asynchronously -- without this guard it would null
+        // wsRef.current and attempt reconnection to the old channel.
+        if (wsRef.current !== ws) return;
+
         wsRef.current = null;
         setStatus('disconnected');
 
@@ -69,40 +100,18 @@ export function useWebSocket(channelId: string | null) {
         retryCountRef.current += 1;
 
         retryTimerRef.current = setTimeout(() => {
-          // Only reconnect if the channel hasn't changed
-          if (channelId === chId) {
-            connect(chId);
-          }
+          openConnection();
         }, delay);
       };
 
       ws.onerror = () => {
         // onclose will fire after onerror, handling reconnection
       };
-    },
-    [channelId, queryClient],
-  );
 
-  useEffect(() => {
-    // Clear any pending retry timer
-    if (retryTimerRef.current) {
-      clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = null;
+      setStatus(retryCountRef.current > 0 ? 'reconnecting' : 'connecting');
     }
 
-    // Close existing connection
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-
-    retryCountRef.current = 0;
-
-    if (channelId) {
-      connect(channelId);
-    } else {
-      setStatus('disconnected');
-    }
+    openConnection();
 
     return () => {
       if (retryTimerRef.current) {
@@ -114,7 +123,8 @@ export function useWebSocket(channelId: string | null) {
         wsRef.current = null;
       }
     };
-  }, [channelId, connect]);
+    // queryClient is stable (from QueryClientProvider context)
+  }, [channelId, queryClient]);
 
   const sendMessage = useCallback(
     (content: string) => {
@@ -131,5 +141,9 @@ export function useWebSocket(channelId: string | null) {
     [],
   );
 
-  return { status, sendMessage, wsRef };
+  // When no channel is selected, always report as disconnected regardless
+  // of internal state transitions from closing the previous connection.
+  const effectiveStatus = channelId ? status : 'disconnected';
+
+  return { status: effectiveStatus, sendMessage, wsRef };
 }

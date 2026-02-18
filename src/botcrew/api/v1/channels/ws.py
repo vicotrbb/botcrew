@@ -63,30 +63,7 @@ async def channel_websocket(
         client_id,
     )
 
-    # 3. Send join notification (system message)
-    try:
-        async with session_factory() as db:
-            redis = websocket.app.state.redis
-            transport = NativeTransport(redis=redis)
-            msg_service = MessageService(db)
-            ch_service = ChannelService(db)
-            comm_service = CommunicationService(
-                message_service=msg_service,
-                channel_service=ch_service,
-                transport=transport,
-            )
-            await comm_service.send_system_message(
-                channel_id=channel_id,
-                content=f"{client_id} joined the channel",
-            )
-    except Exception:
-        logger.exception(
-            "Failed to send join notification: channel=%s client=%s",
-            channel_id,
-            client_id,
-        )
-
-    # 4. Receive loop
+    # 3. Receive loop
     try:
         while True:
             data = await websocket.receive_json()
@@ -138,27 +115,4 @@ async def channel_websocket(
             client_id,
         )
     finally:
-        # 5. Disconnect and send leave notification
         connection_manager.disconnect(channel_id, client_id)
-
-        try:
-            async with session_factory() as db:
-                redis = websocket.app.state.redis
-                transport = NativeTransport(redis=redis)
-                msg_service = MessageService(db)
-                ch_service = ChannelService(db)
-                comm_service = CommunicationService(
-                    message_service=msg_service,
-                    channel_service=ch_service,
-                    transport=transport,
-                )
-                await comm_service.send_system_message(
-                    channel_id=channel_id,
-                    content=f"{client_id} left the channel",
-                )
-        except Exception:
-            logger.exception(
-                "Failed to send leave notification: channel=%s client=%s",
-                channel_id,
-                client_id,
-            )

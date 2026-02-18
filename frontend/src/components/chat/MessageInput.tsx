@@ -1,9 +1,12 @@
 import { type FormEvent, useState } from 'react';
 import { Send } from 'lucide-react';
 import type { ConnectionStatus } from '@/hooks/use-websocket';
-import { useSendMessage } from '@/hooks/use-messages';
+import { useSendMessage, useOptimisticMessage } from '@/hooks/use-messages';
+import { useAgents } from '@/hooks/use-agents';
+import { useMentionAutocomplete } from '@/hooks/use-mention-autocomplete';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { MentionDropdown } from './MentionDropdown';
 
 interface MessageInputProps {
   channelId: string;
@@ -43,6 +46,9 @@ export function MessageInput({
 }: MessageInputProps) {
   const [value, setValue] = useState('');
   const restSend = useSendMessage(channelId);
+  const addOptimistic = useOptimisticMessage(channelId);
+  const { data: agents } = useAgents();
+  const mention = useMentionAutocomplete(value, agents);
 
   const canSend = value.trim().length > 0 && !disabled;
 
@@ -52,10 +58,13 @@ export function MessageInput({
     if (!content) return;
 
     if (wsStatus === 'connected') {
-      // Send via WebSocket
+      // Add optimistic message so it appears instantly in the UI.
+      // The WS echo will trigger invalidateQueries which refetches
+      // and replaces the optimistic entry with the real server data.
+      addOptimistic(content);
       wsSendMessage(content);
     } else {
-      // REST fallback -- sendMessage already includes sender_user_identifier
+      // REST fallback -- useSendMessage handles its own optimistic update
       restSend.mutate({ content, message_type: 'chat' });
     }
 
@@ -65,12 +74,33 @@ export function MessageInput({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex items-center gap-2 border-t border-border p-3"
+      className="relative flex items-center gap-2 border-t border-border p-3"
     >
+      {mention.isOpen && (
+        <MentionDropdown
+          agents={mention.filteredAgents}
+          activeIndex={mention.activeIndex}
+          onSelect={(agent) => setValue(mention.selectAgent(agent))}
+          onHover={mention.setActiveIndex}
+        />
+      )}
       <StatusDot status={wsStatus} />
       <Input
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => {
+          setValue(e.target.value);
+          mention.handleChange(e);
+        }}
+        onKeyDown={(e) => {
+          const result = mention.handleKeyDown(e);
+          if (result.consumed) {
+            e.preventDefault();
+            if (result.newValue !== undefined) {
+              setValue(result.newValue);
+            }
+          }
+        }}
+        onBlur={() => setTimeout(mention.close, 150)}
         placeholder="Type a message..."
         disabled={disabled}
         className="flex-1"

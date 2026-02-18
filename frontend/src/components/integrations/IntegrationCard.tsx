@@ -28,7 +28,7 @@ function ConfigDetails({ integration }: { integration: IntegrationSummary }) {
 
   switch (integration.integration_type) {
     case 'discord': {
-      const dc = config as DiscordConfig;
+      const dc = config as unknown as DiscordConfig;
       return (
         <p className="text-xs text-muted-foreground truncate">
           {dc.webhook_url ? truncateUrl(dc.webhook_url) : 'No webhook URL'}
@@ -36,7 +36,7 @@ function ConfigDetails({ integration }: { integration: IntegrationSummary }) {
       );
     }
     case 'ai_provider': {
-      const ac = config as AIProviderConfig;
+      const ac = config as unknown as AIProviderConfig;
       return (
         <div className="space-y-0.5">
           <p className="text-xs text-muted-foreground">
@@ -49,7 +49,7 @@ function ConfigDetails({ integration }: { integration: IntegrationSummary }) {
       );
     }
     case 'github': {
-      const gc = config as GitHubConfig;
+      const gc = config as unknown as GitHubConfig;
       return (
         <div className="space-y-0.5">
           <p className="text-xs text-muted-foreground">

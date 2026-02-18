@@ -77,6 +77,7 @@ def build_agent_pod_spec(agent: Any, namespace: str) -> V1Pod:
     agent_container = V1Container(
         name="agent",
         image="botcrew-agent:latest",
+        image_pull_policy="Never",
         ports=[V1ContainerPort(container_port=8080)],
         env=env_vars,
         volume_mounts=[workspace_mount],
@@ -103,6 +104,7 @@ def build_agent_pod_spec(agent: Any, namespace: str) -> V1Pod:
     browser_sidecar = V1Container(
         name="browser",
         image="botcrew-browser-sidecar:latest",
+        image_pull_policy="Never",
         ports=[V1ContainerPort(container_port=8001)],
         restart_policy="Always",
         startup_probe=V1Probe(

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
-import { createSecretSchema, updateSecretSchema } from '@/lib/schemas';
+import { createSecretSchema } from '@/lib/schemas';
 import type { CreateSecretInput, UpdateSecretInput } from '@/types/secret';
 import { getSecret } from '@/api/secrets';
 import { useCreateSecret, useUpdateSecret } from '@/hooks/use-secrets';
@@ -41,7 +41,7 @@ export function SecretDialog({ secretId, open, onOpenChange }: SecretDialogProps
   const updateMutation = useUpdateSecret(secretId ?? '');
 
   const form = useForm<CreateSecretInput>({
-    resolver: zodResolver(isEdit ? updateSecretSchema : createSecretSchema),
+    resolver: zodResolver(createSecretSchema),
     defaultValues: {
       key: '',
       value: '',

@@ -6,15 +6,17 @@ Provides CRUD operations, pod-status-enriched listing, and agent duplication.
 
 from __future__ import annotations
 
+import json
 import logging
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from botcrew.models.agent import Agent
+from botcrew.models.integration import Integration
 from botcrew.models.secret import Secret
 from botcrew.schemas.pagination import PaginationMeta, decode_cursor
-from botcrew.services.model_provider import validate_provider_configured
+from botcrew.services.model_provider import PROVIDER_REGISTRY, validate_provider_configured
 from botcrew.services.pod_manager import PodManager
 
 logger = logging.getLogger(__name__)
@@ -48,13 +50,49 @@ class AgentService:
         self.pod_manager = pod_manager
 
     async def get_system_secrets(self) -> dict[str, str]:
-        """Query all system secrets from the database.
+        """Query system secrets and active AI provider integration keys.
 
-        Returns:
-            Dict mapping secret key to secret value.
+        Merges from two sources:
+        1. The ``secrets`` table (base key-value store)
+        2. Active ``ai_provider`` integrations (purpose-built provider UI)
+
+        Integration values override secrets table values.
         """
+        # Base secrets from secrets table
         result = await self.db.execute(select(Secret))
-        return {s.key: s.value for s in result.scalars().all()}
+        secrets = {s.key: s.value for s in result.scalars().all()}
+
+        # Override/fill from active AI provider integrations
+        int_result = await self.db.execute(
+            select(Integration).where(
+                Integration.integration_type == "ai_provider",
+                Integration.is_active.is_(True),
+            )
+        )
+        for integration in int_result.scalars().all():
+            try:
+                config = json.loads(integration.config)
+            except (json.JSONDecodeError, TypeError):
+                logger.warning(
+                    "Skipping integration '%s': invalid JSON config",
+                    integration.name,
+                )
+                continue
+
+            provider_name = config.get("provider")
+            api_key = config.get("api_key")
+            if not provider_name or not api_key:
+                continue
+
+            provider_reg = PROVIDER_REGISTRY.get(provider_name)
+            if not provider_reg:
+                continue
+
+            env_key = provider_reg.get("env_key")
+            if env_key:
+                secrets[env_key] = api_key
+
+        return secrets
 
     async def create_agent(
         self,

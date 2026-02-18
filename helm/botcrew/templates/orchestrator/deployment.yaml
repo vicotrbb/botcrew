@@ -37,6 +37,11 @@ spec:
                 name: botcrew-config
             - secretRef:
                 name: botcrew-secrets
+          env:
+            - name: BOTCREW_CELERY_BROKER_URL
+              value: "redis://botcrew-redis:{{ .Values.redis.port }}/0"
+            - name: BOTCREW_CELERY_RESULT_BACKEND
+              value: "redis://botcrew-redis:{{ .Values.redis.port }}/0"
           readinessProbe:
             httpGet:
               path: /api/v1/system/health

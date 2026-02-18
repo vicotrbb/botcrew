@@ -23,8 +23,8 @@ from botcrew.services.message_service import MessageService
 
 logger = logging.getLogger(__name__)
 
-# Simple @mention regex -- intentionally basic, can be enhanced later
-_MENTION_PATTERN = re.compile(r"@(\w+)")
+# @mention regex -- matches word characters and hyphens (e.g. @test-agent)
+_MENTION_PATTERN = re.compile(r"@([\w-]+)")
 
 
 class TransportAdapter(ABC):
@@ -348,16 +348,18 @@ class CommunicationService:
             "sender_type": sender_type,
             "sender_id": sender_id,
             "message_id": message_id,
+            "reply_channel_id": channel_id,
         }
 
         for agent in channel_agents:
-            # Match against agent name (first word or full name with underscores)
-            agent_name_parts = agent.name.lower().split()
-            agent_name_underscore = agent.name.lower().replace(" ", "_")
+            # Match against agent name variations (hyphens, underscores, spaces)
+            name_lower = agent.name.lower()
+            name_underscored = name_lower.replace(" ", "_").replace("-", "_")
+            name_hyphenated = name_lower.replace(" ", "-")
             if (
-                agent.name.lower() in mentioned_names_lower
-                or agent_name_underscore in mentioned_names_lower
-                or (agent_name_parts and agent_name_parts[0] in mentioned_names_lower)
+                name_lower in mentioned_names_lower
+                or name_underscored in mentioned_names_lower
+                or name_hyphenated in mentioned_names_lower
             ):
                 logger.info(
                     "Delivering @mention to agent '%s' (%s) in channel %s",

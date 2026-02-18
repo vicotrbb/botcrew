@@ -4,6 +4,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 
 interface MessageBubbleProps {
   message: Message;
+  agentNames: Map<string, string>;
 }
 
 function formatTime(isoString: string): string {
@@ -17,10 +18,13 @@ function formatTime(isoString: string): string {
   }
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, agentNames }: MessageBubbleProps) {
   const isSystem = message.message_type === 'system';
   const isAgent = !!message.sender_agent_id;
   const isUser = !!message.sender_user_identifier && !isAgent;
+  const agentName = message.sender_agent_id
+    ? agentNames.get(message.sender_agent_id) ?? 'Agent'
+    : 'Agent';
 
   // System messages: centered, no bubble
   if (isSystem) {
@@ -37,7 +41,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       <div className="flex flex-row items-start gap-2 max-w-[75%]">
         <div className="flex-shrink-0 mt-1">
           <Avatar
-            name={message.sender_agent_id ?? undefined}
+            name={agentName}
             size={28}
             variant="beam"
             colors={['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#e0e7ff']}
@@ -45,7 +49,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         </div>
         <div className="flex flex-col gap-0.5 min-w-0">
           <span className="text-xs font-medium text-muted-foreground truncate">
-            Agent
+            {agentName}
           </span>
           <div className="bg-muted text-foreground rounded-lg rounded-tl-sm px-3 py-2">
             <MarkdownRenderer content={message.content} />
