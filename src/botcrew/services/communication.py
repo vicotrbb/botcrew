@@ -1,7 +1,7 @@
 """Unified message routing with transport abstraction.
 
 CommunicationService orchestrates persist-then-route for every message.
-TransportAdapter ABC enables future transport implementations (e.g. Discord).
+TransportAdapter ABC enables future transport implementations.
 NativeTransport publishes directly to Redis pub/sub for channel broadcast
 (fast path, no Celery) and uses Celery only for DM delivery to agent
 containers (reliable path with retries).
@@ -30,7 +30,6 @@ _MENTION_PATTERN = re.compile(r"@([\w-]+)")
 class TransportAdapter(ABC):
     """Base interface for message delivery transports.
 
-    Phase 10 will add DiscordTransport alongside NativeTransport.
     Each transport implements channel broadcast and agent DM delivery
     using its own underlying infrastructure.
     """

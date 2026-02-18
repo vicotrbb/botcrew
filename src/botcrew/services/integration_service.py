@@ -39,7 +39,7 @@ class IntegrationService:
 
         Args:
             name: Integration display name.
-            integration_type: Type identifier (e.g. "discord", "slack").
+            integration_type: Type identifier (e.g. "ai_provider", "github").
             config: JSON string with provider-specific configuration.
             agent_id: Optional associated agent UUID.
             channel_id: Optional associated channel UUID.

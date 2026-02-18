@@ -1,5 +1,5 @@
 import { Pencil, Trash2 } from 'lucide-react';
-import type { IntegrationSummary, DiscordConfig, AIProviderConfig, GitHubConfig } from '@/types/integration';
+import type { IntegrationSummary, AIProviderConfig, GitHubConfig } from '@/types/integration';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,23 +18,10 @@ function maskValue(value: string, visibleChars = 4): string {
   return value.slice(0, visibleChars) + '****';
 }
 
-function truncateUrl(url: string, maxLength = 40): string {
-  if (url.length <= maxLength) return url;
-  return url.slice(0, maxLength) + '...';
-}
-
 function ConfigDetails({ integration }: { integration: IntegrationSummary }) {
   const config = parseConfig(integration.config);
 
   switch (integration.integration_type) {
-    case 'discord': {
-      const dc = config as unknown as DiscordConfig;
-      return (
-        <p className="text-xs text-muted-foreground truncate">
-          {dc.webhook_url ? truncateUrl(dc.webhook_url) : 'No webhook URL'}
-        </p>
-      );
-    }
     case 'ai_provider': {
       const ac = config as unknown as AIProviderConfig;
       return (

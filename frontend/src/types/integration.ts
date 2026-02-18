@@ -1,4 +1,4 @@
-export type IntegrationType = 'discord' | 'ai_provider' | 'github';
+export type IntegrationType = 'ai_provider' | 'github';
 
 export interface IntegrationSummary {
   id: string;
@@ -15,10 +15,6 @@ export interface IntegrationSummary {
 export type IntegrationDetail = IntegrationSummary;
 
 /** Parsed config types for each integration type */
-export interface DiscordConfig {
-  webhook_url: string;
-}
-
 export interface AIProviderConfig {
   provider: string;
   api_key: string;

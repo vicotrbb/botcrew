@@ -88,16 +88,6 @@ export const updateSkillSchema = z.object({
 });
 
 /**
- * Zod schema for Discord integration creation form validation.
- */
-export const discordIntegrationSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100),
-  webhook_url: z.string().url('Must be a valid URL'),
-  agent_id: z.string().optional(),
-  channel_id: z.string().optional(),
-});
-
-/**
  * Zod schema for AI provider integration creation form validation.
  */
 export const aiProviderIntegrationSchema = z.object({
@@ -146,7 +136,6 @@ export type CreateSecretInput = z.infer<typeof createSecretSchema>;
 export type UpdateSecretInput = z.infer<typeof updateSecretSchema>;
 export type CreateSkillInput = z.infer<typeof createSkillSchema>;
 export type UpdateSkillInput = z.infer<typeof updateSkillSchema>;
-export type DiscordIntegrationInput = z.infer<typeof discordIntegrationSchema>;
 export type AIProviderIntegrationInput = z.infer<typeof aiProviderIntegrationSchema>;
 export type GitHubIntegrationInput = z.infer<typeof githubIntegrationSchema>;
 export type CreateProjectFormInput = z.infer<typeof createProjectSchema>;

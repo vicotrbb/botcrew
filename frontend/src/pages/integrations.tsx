@@ -1,9 +1,8 @@
 import { useState, useCallback } from 'react';
-import { AlertCircle, RefreshCw, ChevronDown, MessageSquare, Cpu, GitBranch } from 'lucide-react';
+import { AlertCircle, RefreshCw, ChevronDown, Cpu, GitBranch } from 'lucide-react';
 import type { IntegrationType, IntegrationSummary } from '@/types/integration';
 import { useIntegrations, useDeleteIntegration } from '@/hooks/use-integrations';
 import { updateIntegration } from '@/api/integrations';
-import { DiscordSection } from '@/components/integrations/DiscordSection';
 import { AIProvidersSection } from '@/components/integrations/AIProvidersSection';
 import { GitHubSection } from '@/components/integrations/GitHubSection';
 import { Button } from '@/components/ui/button';
@@ -47,7 +46,6 @@ interface SectionConfig {
 }
 
 const SECTIONS: SectionConfig[] = [
-  { type: 'discord', label: 'Discord', icon: MessageSquare },
   { type: 'ai_provider', label: 'AI Providers', icon: Cpu },
   { type: 'github', label: 'GitHub', icon: GitBranch },
 ];
@@ -60,8 +58,6 @@ function renderSection(
 ) {
   const props = { integrations, onDelete, onToggleActive };
   switch (type) {
-    case 'discord':
-      return <DiscordSection {...props} />;
     case 'ai_provider':
       return <AIProvidersSection {...props} />;
     case 'github':
