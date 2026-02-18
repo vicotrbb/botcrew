@@ -4,7 +4,11 @@ import { MainLayout } from './components/layout/MainLayout';
 import { DashboardPage } from './pages/dashboard';
 import { AgentCreatePage } from './pages/agent-create';
 import { AgentDetailPage } from './pages/agent-detail';
+import { IntegrationsPage } from './pages/integrations';
 import { NotFoundPage } from './pages/not-found';
+import { ProjectsPage } from './pages/projects';
+import { SecretsPage } from './pages/secrets';
+import { SkillsPage } from './pages/skills';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +29,10 @@ export function App() {
             <Route path="agents" element={<DashboardPage />} />
             <Route path="agents/new" element={<AgentCreatePage />} />
             <Route path="agents/:id" element={<AgentDetailPage />} />
+            <Route path="projects" element={<ProjectsPage />} />
+            <Route path="skills" element={<SkillsPage />} />
+            <Route path="secrets" element={<SecretsPage />} />
+            <Route path="integrations" element={<IntegrationsPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
