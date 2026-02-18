@@ -116,6 +116,27 @@ export const githubIntegrationSchema = z.object({
 });
 
 /**
+ * Zod schema for project creation form validation.
+ */
+export const createProjectSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or fewer'),
+  description: z.string().optional(),
+  goals: z.string().optional(),
+  github_repo_url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+});
+
+/**
+ * Zod schema for project update form validation. All fields optional.
+ */
+export const updateProjectSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().optional(),
+  goals: z.string().optional(),
+  specs: z.string().optional(),
+  github_repo_url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+});
+
+/**
  * Inferred types from Zod schemas for form usage.
  */
 export type CreateAgentInput = z.infer<typeof createAgentSchema>;
@@ -128,3 +149,5 @@ export type UpdateSkillInput = z.infer<typeof updateSkillSchema>;
 export type DiscordIntegrationInput = z.infer<typeof discordIntegrationSchema>;
 export type AIProviderIntegrationInput = z.infer<typeof aiProviderIntegrationSchema>;
 export type GitHubIntegrationInput = z.infer<typeof githubIntegrationSchema>;
+export type CreateProjectFormInput = z.infer<typeof createProjectSchema>;
+export type UpdateProjectFormInput = z.infer<typeof updateProjectSchema>;
