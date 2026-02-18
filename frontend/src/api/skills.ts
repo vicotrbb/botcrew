@@ -10,11 +10,11 @@ export async function getSkill(id: string): Promise<SkillDetail> {
 }
 
 export async function createSkill(input: CreateSkillInput): Promise<SkillDetail> {
-  return postJSON<Omit<SkillDetail, 'id'>>('/skills', input);
+  return postJSON<Omit<SkillDetail, 'id'>>('/skills', input, 'skills');
 }
 
 export async function updateSkill(id: string, input: UpdateSkillInput): Promise<SkillDetail> {
-  return patchJSON<Omit<SkillDetail, 'id'>>(`/skills/${id}`, input);
+  return patchJSON<Omit<SkillDetail, 'id'>>(`/skills/${id}`, input, 'skills');
 }
 
 export async function deleteSkill(id: string): Promise<void> {

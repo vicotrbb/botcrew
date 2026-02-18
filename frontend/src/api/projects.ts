@@ -17,11 +17,11 @@ export async function getProject(id: string): Promise<ProjectDetail> {
 }
 
 export async function createProject(input: CreateProjectInput): Promise<ProjectDetail> {
-  return postJSON<Omit<ProjectDetail, 'id'>>('/projects', input);
+  return postJSON<Omit<ProjectDetail, 'id'>>('/projects', input, 'projects');
 }
 
 export async function updateProject(id: string, input: UpdateProjectInput): Promise<ProjectDetail> {
-  return patchJSON<Omit<ProjectDetail, 'id'>>(`/projects/${id}`, input);
+  return patchJSON<Omit<ProjectDetail, 'id'>>(`/projects/${id}`, input, 'projects');
 }
 
 export async function deleteProject(id: string): Promise<void> {
@@ -33,7 +33,7 @@ export async function getProjectAgents(projectId: string): Promise<ProjectAgent[
 }
 
 export async function assignAgent(projectId: string, input: AssignAgentInput): Promise<ProjectAgent> {
-  return postJSON<Omit<ProjectAgent, 'id'>>(`/projects/${projectId}/agents`, input);
+  return postJSON<Omit<ProjectAgent, 'id'>>(`/projects/${projectId}/agents`, input, 'project-agents');
 }
 
 export async function removeAgent(projectId: string, agentId: string): Promise<void> {

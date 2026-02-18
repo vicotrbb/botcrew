@@ -10,14 +10,14 @@ export async function getChannel(id: string): Promise<Channel> {
 }
 
 export async function createChannel(input: CreateChannelInput): Promise<Channel> {
-  return postJSON<Omit<Channel, 'id'>>('/channels', input);
+  return postJSON<Omit<Channel, 'id'>>('/channels', input, 'channels');
 }
 
 export async function updateChannel(
   id: string,
   input: Partial<Pick<Channel, 'name' | 'description'>>,
 ): Promise<Channel> {
-  return patchJSON<Omit<Channel, 'id'>>(`/channels/${id}`, input);
+  return patchJSON<Omit<Channel, 'id'>>(`/channels/${id}`, input, 'channels');
 }
 
 export async function deleteChannel(id: string): Promise<void> {
@@ -28,7 +28,7 @@ export async function addChannelMember(
   channelId: string,
   body: { agent_id?: string; user_identifier?: string },
 ): Promise<void> {
-  await postJSON<Record<string, unknown>>(`/channels/${channelId}/members`, body);
+  await postJSON<Record<string, unknown>>(`/channels/${channelId}/members`, body, 'channel-members');
 }
 
 /**
@@ -40,5 +40,5 @@ export async function removeChannelMember(
   channelId: string,
   agentId: string,
 ): Promise<void> {
-  return deleteJSONWithBody(`/channels/${channelId}/members`, { agent_id: agentId });
+  return deleteJSONWithBody(`/channels/${channelId}/members`, { agent_id: agentId }, 'channel-members');
 }

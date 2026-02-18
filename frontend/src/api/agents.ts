@@ -11,11 +11,11 @@ export async function getAgent(id: string): Promise<AgentDetail> {
 }
 
 export async function createAgent(input: CreateAgentInput): Promise<AgentDetail> {
-  return postJSON<Omit<AgentDetail, 'id'>>('/agents', input);
+  return postJSON<Omit<AgentDetail, 'id'>>('/agents', input, 'agents');
 }
 
 export async function updateAgent(id: string, input: UpdateAgentInput): Promise<AgentDetail> {
-  return patchJSON<Omit<AgentDetail, 'id'>>(`/agents/${id}`, input);
+  return patchJSON<Omit<AgentDetail, 'id'>>(`/agents/${id}`, input, 'agents');
 }
 
 export async function deleteAgent(id: string): Promise<void> {
@@ -34,12 +34,12 @@ export async function updateAgentMemory(
   id: string,
   content: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  return putJSON<Record<string, unknown>>(`/agents/${id}/memory`, content);
+  return putJSON<Record<string, unknown>>(`/agents/${id}/memory`, content, 'agent-memory');
 }
 
 export async function patchAgentMemory(
   id: string,
   patch: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  return patchJSON<Record<string, unknown>>(`/agents/${id}/memory`, patch);
+  return patchJSON<Record<string, unknown>>(`/agents/${id}/memory`, patch, 'agent-memory');
 }

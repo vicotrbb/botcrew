@@ -10,11 +10,11 @@ export async function getSecret(id: string): Promise<SecretDetail> {
 }
 
 export async function createSecret(input: CreateSecretInput): Promise<SecretDetail> {
-  return postJSON<Omit<SecretDetail, 'id'>>('/secrets', input);
+  return postJSON<Omit<SecretDetail, 'id'>>('/secrets', input, 'secrets');
 }
 
 export async function updateSecret(id: string, input: UpdateSecretInput): Promise<SecretDetail> {
-  return patchJSON<Omit<SecretDetail, 'id'>>(`/secrets/${id}`, input);
+  return patchJSON<Omit<SecretDetail, 'id'>>(`/secrets/${id}`, input, 'secrets');
 }
 
 export async function deleteSecret(id: string): Promise<void> {

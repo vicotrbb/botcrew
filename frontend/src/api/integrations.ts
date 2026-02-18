@@ -18,14 +18,14 @@ export async function getIntegration(id: string): Promise<IntegrationDetail> {
 export async function createIntegration(
   input: CreateIntegrationInput,
 ): Promise<IntegrationDetail> {
-  return postJSON<Omit<IntegrationDetail, 'id'>>('/integrations', input);
+  return postJSON<Omit<IntegrationDetail, 'id'>>('/integrations', input, 'integrations');
 }
 
 export async function updateIntegration(
   id: string,
   input: UpdateIntegrationInput,
 ): Promise<IntegrationDetail> {
-  return patchJSON<Omit<IntegrationDetail, 'id'>>(`/integrations/${id}`, input);
+  return patchJSON<Omit<IntegrationDetail, 'id'>>(`/integrations/${id}`, input, 'integrations');
 }
 
 export async function deleteIntegration(id: string): Promise<void> {

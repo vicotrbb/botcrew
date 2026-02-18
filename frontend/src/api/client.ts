@@ -87,32 +87,37 @@ export async function fetchListWithMeta<T>(
 }
 
 /**
- * POST JSON body, return unwrapped single resource.
+ * POST JSON body wrapped in JSON:API envelope, return unwrapped single resource.
+ * Pass `type` to wrap as `{ data: { type, attributes: body } }`.
+ * If `type` is omitted the body is sent as-is (for body-less POSTs like duplicate).
  */
 export async function postJSON<T>(
   path: string,
   body: unknown,
+  type?: string,
 ): Promise<T & { id: string }> {
+  const payload = type ? { data: { type, attributes: body } } : body;
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
   const json = (await handleResponse(res)) as JSONAPISingleResponse<T>;
   return { id: json.data.id, ...json.data.attributes };
 }
 
 /**
- * PATCH JSON body, return unwrapped single resource.
+ * PATCH JSON body wrapped in JSON:API envelope, return unwrapped single resource.
  */
 export async function patchJSON<T>(
   path: string,
   body: unknown,
+  type: string,
 ): Promise<T & { id: string }> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ data: { type, attributes: body } }),
   });
   const json = (await handleResponse(res)) as JSONAPISingleResponse<T>;
   return { id: json.data.id, ...json.data.attributes };
@@ -130,31 +135,33 @@ export async function deleteJSON(path: string): Promise<void> {
 }
 
 /**
- * DELETE with JSON body (e.g., removeChannelMember). Returns void.
+ * DELETE with JSON body wrapped in JSON:API envelope. Returns void.
  */
 export async function deleteJSONWithBody(
   path: string,
   body: unknown,
+  type: string,
 ): Promise<void> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ data: { type, attributes: body } }),
   });
   await handleResponse(res);
 }
 
 /**
- * PUT JSON body, return unwrapped single resource.
+ * PUT JSON body wrapped in JSON:API envelope, return unwrapped single resource.
  */
 export async function putJSON<T>(
   path: string,
   body: unknown,
+  type: string,
 ): Promise<T & { id: string }> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ data: { type, attributes: body } }),
   });
   const json = (await handleResponse(res)) as JSONAPISingleResponse<T>;
   return { id: json.data.id, ...json.data.attributes };

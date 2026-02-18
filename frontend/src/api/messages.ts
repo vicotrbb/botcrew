@@ -35,6 +35,7 @@ export async function sendMessage(
   return postJSON<Omit<Message, 'id'>>(
     `/channels/${channelId}/messages?sender_user_identifier=${encodeURIComponent(clientId)}`,
     input,
+    'messages',
   );
 }
 
