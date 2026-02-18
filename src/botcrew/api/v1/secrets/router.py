@@ -17,6 +17,7 @@ from botcrew.api.deps import get_db
 from botcrew.models.secret import Secret
 from botcrew.schemas.jsonapi import (
     JSONAPIListResponse,
+    JSONAPIRequest,
     JSONAPIResource,
     JSONAPISingleResponse,
 )
@@ -66,16 +67,17 @@ def _secret_resource(
 
 @router.post("", status_code=201)
 async def create_secret(
-    body: CreateSecretRequest,
+    body: JSONAPIRequest[CreateSecretRequest],
     db: AsyncSession = Depends(get_db),
 ) -> JSONAPISingleResponse:
     """Create a new secret."""
+    attrs = body.data.attributes
     service = SecretService(db)
     try:
         secret = await service.create_secret(
-            key=body.key,
-            value=body.value,
-            description=body.description,
+            key=attrs.key,
+            value=attrs.value,
+            description=attrs.description,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -136,12 +138,13 @@ async def get_secret(
 @router.patch("/{secret_id}")
 async def update_secret(
     secret_id: str,
-    body: UpdateSecretRequest,
+    body: JSONAPIRequest[UpdateSecretRequest],
     db: AsyncSession = Depends(get_db),
 ) -> JSONAPISingleResponse:
     """Update specified fields of an existing secret."""
+    attrs = body.data.attributes
     service = SecretService(db)
-    update_data = body.model_dump(exclude_unset=True)
+    update_data = attrs.model_dump(exclude_unset=True)
 
     try:
         secret = await service.update_secret(secret_id, **update_data)

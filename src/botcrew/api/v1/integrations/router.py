@@ -21,6 +21,7 @@ from botcrew.schemas.integration import (
 )
 from botcrew.schemas.jsonapi import (
     JSONAPIListResponse,
+    JSONAPIRequest,
     JSONAPIResource,
     JSONAPISingleResponse,
 )
@@ -65,17 +66,18 @@ def _integration_resource(integration: Integration) -> JSONAPIResource:
 
 @router.post("", status_code=201)
 async def create_integration(
-    body: CreateIntegrationRequest,
+    body: JSONAPIRequest[CreateIntegrationRequest],
     db: AsyncSession = Depends(get_db),
 ) -> JSONAPISingleResponse:
     """Create a new integration."""
+    attrs = body.data.attributes
     service = IntegrationService(db)
     integration = await service.create_integration(
-        name=body.name,
-        integration_type=body.integration_type,
-        config=body.config,
-        agent_id=body.agent_id,
-        channel_id=body.channel_id,
+        name=attrs.name,
+        integration_type=attrs.integration_type,
+        config=attrs.config,
+        agent_id=attrs.agent_id,
+        channel_id=attrs.channel_id,
     )
 
     return JSONAPISingleResponse(data=_integration_resource(integration))
@@ -143,12 +145,13 @@ async def get_integration(
 @router.patch("/{integration_id}")
 async def update_integration(
     integration_id: str,
-    body: UpdateIntegrationRequest,
+    body: JSONAPIRequest[UpdateIntegrationRequest],
     db: AsyncSession = Depends(get_db),
 ) -> JSONAPISingleResponse:
     """Update specified fields of an existing integration."""
+    attrs = body.data.attributes
     service = IntegrationService(db)
-    update_data = body.model_dump(exclude_unset=True)
+    update_data = attrs.model_dump(exclude_unset=True)
 
     try:
         integration = await service.update_integration(

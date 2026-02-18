@@ -29,6 +29,7 @@ from botcrew.schemas.channel import (
 )
 from botcrew.schemas.jsonapi import (
     JSONAPIListResponse,
+    JSONAPIRequest,
     JSONAPIResource,
     JSONAPISingleResponse,
 )
@@ -136,17 +137,18 @@ def _read_cursor_resource(cursor: ReadCursor) -> JSONAPIResource:
 
 @router.post("", status_code=201)
 async def create_channel(
-    body: CreateChannelRequest,
+    body: JSONAPIRequest[CreateChannelRequest],
     db: AsyncSession = Depends(get_db),
 ) -> JSONAPISingleResponse:
     """Create a new channel with optional initial members."""
+    attrs = body.data.attributes
     service = ChannelService(db)
     channel = await service.create_channel(
-        name=body.name,
-        description=body.description,
-        channel_type=body.channel_type,
-        creator_user_identifier=body.creator_user_identifier,
-        agent_ids=body.agent_ids,
+        name=attrs.name,
+        description=attrs.description,
+        channel_type=attrs.channel_type,
+        creator_user_identifier=attrs.creator_user_identifier,
+        agent_ids=attrs.agent_ids,
     )
     return JSONAPISingleResponse(data=_channel_resource(channel))
 
@@ -184,16 +186,17 @@ async def get_channel(
 @router.patch("/{channel_id}")
 async def update_channel(
     channel_id: str,
-    body: UpdateChannelRequest,
+    body: JSONAPIRequest[UpdateChannelRequest],
     db: AsyncSession = Depends(get_db),
 ) -> JSONAPISingleResponse:
     """Update a channel's name or description."""
+    attrs = body.data.attributes
     service = ChannelService(db)
     channel = await service.get_channel(channel_id)
     if channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
 
-    update_data = body.model_dump(exclude_unset=True)
+    update_data = attrs.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(channel, field, value)
 
@@ -225,10 +228,11 @@ async def delete_channel(
 @router.post("/{channel_id}/members", status_code=201)
 async def add_member(
     channel_id: str,
-    body: AddMemberRequest,
+    body: JSONAPIRequest[AddMemberRequest],
     db: AsyncSession = Depends(get_db),
 ) -> JSONAPISingleResponse:
     """Add a member (agent or user) to a channel."""
+    attrs = body.data.attributes
     service = ChannelService(db)
 
     # Verify channel exists
@@ -239,8 +243,8 @@ async def add_member(
     try:
         member = await service.add_member(
             channel_id=channel_id,
-            agent_id=body.agent_id,
-            user_identifier=body.user_identifier,
+            agent_id=attrs.agent_id,
+            user_identifier=attrs.user_identifier,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -251,16 +255,17 @@ async def add_member(
 @router.delete("/{channel_id}/members", status_code=204)
 async def remove_member(
     channel_id: str,
-    body: AddMemberRequest,
+    body: JSONAPIRequest[AddMemberRequest],
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Remove a member from a channel."""
+    attrs = body.data.attributes
     service = ChannelService(db)
     try:
         await service.remove_member(
             channel_id=channel_id,
-            agent_id=body.agent_id,
-            user_identifier=body.user_identifier,
+            agent_id=attrs.agent_id,
+            user_identifier=attrs.user_identifier,
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -317,12 +322,13 @@ async def get_message_history(
 @router.post("/{channel_id}/messages", status_code=201)
 async def send_channel_message(
     channel_id: str,
-    body: SendMessageRequest,
+    body: JSONAPIRequest[SendMessageRequest],
     sender_agent_id: str | None = Query(default=None),
     sender_user_identifier: str | None = Query(default=None),
     comm_service: CommunicationService = Depends(get_communication_service),
 ) -> JSONAPISingleResponse:
     """Send a message to a channel via REST (used by agents posting to channels)."""
+    attrs = body.data.attributes
     if not sender_agent_id and not sender_user_identifier:
         raise HTTPException(
             status_code=422,
@@ -331,10 +337,10 @@ async def send_channel_message(
 
     msg = await comm_service.send_channel_message(
         channel_id=channel_id,
-        content=body.content,
+        content=attrs.content,
         sender_agent_id=sender_agent_id,
         sender_user_identifier=sender_user_identifier,
-        message_type=body.message_type,
+        message_type=attrs.message_type,
     )
     return JSONAPISingleResponse(data=_message_resource(msg))
 
@@ -425,14 +431,15 @@ async def mark_messages_read(
 @router.post("/dm/{agent_id}", status_code=202)
 async def send_direct_message(
     agent_id: str,
-    body: SendMessageRequest,
+    body: JSONAPIRequest[SendMessageRequest],
     sender_user_identifier: str | None = Query(default=None),
     comm_service: CommunicationService = Depends(get_communication_service),
 ) -> JSONAPISingleResponse:
     """Send a direct message to an agent (async delivery, returns 202)."""
+    attrs = body.data.attributes
     msg = await comm_service.send_direct_message(
         agent_id=agent_id,
-        content=body.content,
+        content=attrs.content,
         sender_user_identifier=sender_user_identifier,
     )
     return JSONAPISingleResponse(data=_message_resource(msg))

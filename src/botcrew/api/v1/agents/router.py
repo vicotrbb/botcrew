@@ -21,6 +21,7 @@ from botcrew.models.agent import Agent
 from botcrew.schemas.agent import CreateAgentRequest, UpdateAgentRequest
 from botcrew.schemas.jsonapi import (
     JSONAPIListResponse,
+    JSONAPIRequest,
     JSONAPIResource,
     JSONAPISingleResponse,
 )
@@ -78,20 +79,21 @@ def _agent_resource(agent: Agent, *, detail: bool = False) -> JSONAPIResource:
 
 @router.post("", status_code=201)
 async def create_agent(
-    body: CreateAgentRequest,
+    body: JSONAPIRequest[CreateAgentRequest],
     db: AsyncSession = Depends(get_db),
     pod_manager: PodManager = Depends(get_pod_manager),
 ) -> JSONAPISingleResponse:
     """Create a new agent with Kubernetes pod orchestration."""
+    attrs = body.data.attributes
     service = AgentService(db, pod_manager)
     try:
         agent = await service.create_agent(
-            name=body.name,
-            model_provider=body.model_provider,
-            model_name=body.model_name,
-            identity=body.identity,
-            personality=body.personality,
-            heartbeat_interval_seconds=body.heartbeat_interval_seconds,
+            name=attrs.name,
+            model_provider=attrs.model_provider,
+            model_name=attrs.model_name,
+            identity=attrs.identity,
+            personality=attrs.personality,
+            heartbeat_interval_seconds=attrs.heartbeat_interval_seconds,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -182,13 +184,14 @@ async def get_agent(
 @router.patch("/{agent_id}")
 async def update_agent(
     agent_id: str,
-    body: UpdateAgentRequest,
+    body: JSONAPIRequest[UpdateAgentRequest],
     db: AsyncSession = Depends(get_db),
     pod_manager: PodManager = Depends(get_pod_manager),
 ) -> JSONAPISingleResponse:
     """Update specified fields of an existing agent."""
+    attrs = body.data.attributes
     service = AgentService(db, pod_manager)
-    update_data = body.model_dump(exclude_unset=True)
+    update_data = attrs.model_dump(exclude_unset=True)
 
     try:
         agent = await service.update_agent(agent_id, **update_data)

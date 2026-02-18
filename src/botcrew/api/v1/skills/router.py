@@ -14,6 +14,7 @@ from botcrew.api.deps import get_db
 from botcrew.models.skill import Skill
 from botcrew.schemas.jsonapi import (
     JSONAPIListResponse,
+    JSONAPIRequest,
     JSONAPIResource,
     JSONAPISingleResponse,
 )
@@ -55,16 +56,17 @@ def _skill_resource(skill: Skill) -> JSONAPIResource:
 
 @router.post("", status_code=201)
 async def create_skill(
-    body: CreateSkillRequest,
+    body: JSONAPIRequest[CreateSkillRequest],
     db: AsyncSession = Depends(get_db),
 ) -> JSONAPISingleResponse:
     """Create a new skill in the global skills library."""
+    attrs = body.data.attributes
     service = SkillService(db)
     try:
         skill = await service.create_skill(
-            name=body.name,
-            description=body.description,
-            body=body.body,
+            name=attrs.name,
+            description=attrs.description,
+            body=attrs.body,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -121,12 +123,13 @@ async def get_skill(
 @router.patch("/{skill_id}")
 async def update_skill(
     skill_id: str,
-    body: UpdateSkillRequest,
+    body: JSONAPIRequest[UpdateSkillRequest],
     db: AsyncSession = Depends(get_db),
 ) -> JSONAPISingleResponse:
     """Update specified fields of an existing skill."""
+    attrs = body.data.attributes
     service = SkillService(db)
-    update_data = body.model_dump(exclude_unset=True)
+    update_data = attrs.model_dump(exclude_unset=True)
 
     try:
         skill = await service.update_skill(skill_id, **update_data)

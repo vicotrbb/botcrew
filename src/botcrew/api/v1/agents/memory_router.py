@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from botcrew.api.deps import get_db
 from botcrew.models.agent import Agent
 from botcrew.schemas.agent import MemoryPatchRequest, MemoryUpdateRequest
-from botcrew.schemas.jsonapi import JSONAPIResource, JSONAPISingleResponse
+from botcrew.schemas.jsonapi import JSONAPIRequest, JSONAPIResource, JSONAPISingleResponse
 
 router = APIRouter()
 
@@ -46,15 +46,16 @@ async def get_memory(
 @router.put("/{agent_id}/memory")
 async def replace_memory(
     agent_id: str,
-    body: MemoryUpdateRequest,
+    body: JSONAPIRequest[MemoryUpdateRequest],
     db: AsyncSession = Depends(get_db),
 ) -> JSONAPISingleResponse:
     """Replace the entire memory content for an agent."""
+    attrs = body.data.attributes
     agent = await db.get(Agent, agent_id)
     if agent is None:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    agent.memory = body.content
+    agent.memory = attrs.content
     await db.commit()
     await db.refresh(agent)
 
@@ -64,7 +65,7 @@ async def replace_memory(
 @router.patch("/{agent_id}/memory")
 async def patch_memory(
     agent_id: str,
-    body: MemoryPatchRequest,
+    body: JSONAPIRequest[MemoryPatchRequest],
     db: AsyncSession = Depends(get_db),
 ) -> JSONAPISingleResponse:
     """Append to or replace agent memory.
@@ -73,15 +74,16 @@ async def patch_memory(
     If ``append`` is provided, appends to existing memory with a newline separator.
     At least one of ``content`` or ``append`` must be provided.
     """
+    attrs = body.data.attributes
     agent = await db.get(Agent, agent_id)
     if agent is None:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    if body.content is not None:
-        agent.memory = body.content
-    elif body.append is not None:
+    if attrs.content is not None:
+        agent.memory = attrs.content
+    elif attrs.append is not None:
         agent.memory = (
-            agent.memory + "\n" + body.append if agent.memory else body.append
+            agent.memory + "\n" + attrs.append if agent.memory else attrs.append
         )
     else:
         raise HTTPException(

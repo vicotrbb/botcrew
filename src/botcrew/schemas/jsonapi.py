@@ -1,14 +1,36 @@
 """JSON:API envelope models using Pydantic v2.
 
 Enforces the JSON:API specification's data/type/id/attributes structure
-for all API responses. Every endpoint returns one of these envelope types.
+for all API requests and responses. Every mutation endpoint accepts a
+JSONAPIRequest wrapper; every endpoint returns one of the response
+envelope types.
 
 Reference: https://jsonapi.org/format/
 """
 
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
+
+T = TypeVar("T")
+
+
+# ---------------------------------------------------------------------------
+# Request wrappers
+# ---------------------------------------------------------------------------
+
+
+class JSONAPIRequestData(BaseModel, Generic[T]):
+    """The ``data`` object inside a JSON:API request body."""
+
+    type: str
+    attributes: T
+
+
+class JSONAPIRequest(BaseModel, Generic[T]):
+    """JSON:API request envelope wrapping ``{ data: { type, attributes } }``."""
+
+    data: JSONAPIRequestData[T]
 
 
 class JSONAPIResource(BaseModel):

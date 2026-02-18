@@ -14,6 +14,7 @@ from botcrew.api.deps import get_db
 from botcrew.models.project import Project, ProjectAgent, ProjectFile
 from botcrew.schemas.jsonapi import (
     JSONAPIListResponse,
+    JSONAPIRequest,
     JSONAPIResource,
     JSONAPISingleResponse,
 )
@@ -108,16 +109,17 @@ def _file_resource(
 
 @router.post("", status_code=201)
 async def create_project(
-    body: CreateProjectRequest,
+    body: JSONAPIRequest[CreateProjectRequest],
     db: AsyncSession = Depends(get_db),
 ) -> JSONAPISingleResponse:
     """Create a new project with an auto-created channel."""
+    attrs = body.data.attributes
     service = ProjectService(db)
     project = await service.create_project(
-        name=body.name,
-        description=body.description,
-        goals=body.goals,
-        github_repo_url=body.github_repo_url,
+        name=attrs.name,
+        description=attrs.description,
+        goals=attrs.goals,
+        github_repo_url=attrs.github_repo_url,
     )
     return JSONAPISingleResponse(data=_project_resource(project))
 
@@ -172,12 +174,13 @@ async def get_project(
 @router.patch("/{project_id}")
 async def update_project(
     project_id: str,
-    body: UpdateProjectRequest,
+    body: JSONAPIRequest[UpdateProjectRequest],
     db: AsyncSession = Depends(get_db),
 ) -> JSONAPISingleResponse:
     """Update specified fields of an existing project."""
+    attrs = body.data.attributes
     service = ProjectService(db)
-    update_data = body.model_dump(exclude_unset=True)
+    update_data = attrs.model_dump(exclude_unset=True)
     try:
         project = await service.update_project(project_id, **update_data)
     except ValueError as exc:
@@ -206,16 +209,17 @@ async def delete_project(
 @router.post("/{project_id}/agents", status_code=201)
 async def assign_agent(
     project_id: str,
-    body: AssignAgentRequest,
+    body: JSONAPIRequest[AssignAgentRequest],
     db: AsyncSession = Depends(get_db),
 ) -> JSONAPISingleResponse:
     """Assign an agent to a project with optional role_prompt."""
+    attrs = body.data.attributes
     service = ProjectService(db)
     try:
         assignment = await service.assign_agent(
             project_id=project_id,
-            agent_id=body.agent_id,
-            role_prompt=body.role_prompt,
+            agent_id=attrs.agent_id,
+            role_prompt=attrs.role_prompt,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
