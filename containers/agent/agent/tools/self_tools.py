@@ -44,22 +44,28 @@ class SelfTools(Toolkit):
         agent_id: str,
         runtime: Any | None = None,
         heartbeat: Any | None = None,
+        is_sub_call: bool = False,
         **kwargs: Any,
     ) -> None:
         self.orchestrator_url = orchestrator_url.rstrip("/")
         self.agent_id = agent_id
         self._runtime = runtime
         self._heartbeat = heartbeat
+        self._is_sub_call = is_sub_call
+
+        tools = [
+            self.get_self_info,
+            self.update_identity,
+            self.update_personality,
+            self.update_heartbeat_prompt,
+            self.update_heartbeat_interval,
+        ]
+        if not is_sub_call:
+            tools.append(self.self_invoke)
 
         super().__init__(
             name="self_tools",
-            tools=[
-                self.get_self_info,
-                self.update_identity,
-                self.update_personality,
-                self.update_heartbeat_prompt,
-                self.update_heartbeat_interval,
-            ],
+            tools=tools,
             **kwargs,
         )
 
@@ -262,3 +268,27 @@ class SelfTools(Toolkit):
             f"Updated heartbeat interval to {interval_seconds} seconds",
         )
         return f"Heartbeat interval updated to {interval_seconds} seconds."
+
+    def self_invoke(self, instruction: str) -> str:
+        """Spawn a focused sub-call to execute a specific instruction.
+
+        The sub-call runs independently with full tool access but cannot
+        spawn further sub-calls (depth limit = 1). Use this to work on
+        specific tasks, projects, or directives in parallel.
+
+        Args:
+            instruction: Clear, focused instruction for what the sub-call should do.
+        """
+        if self._is_sub_call:
+            return "Error: Cannot spawn sub-calls from within a sub-call (depth limit reached)."
+
+        if self._runtime is None:
+            return "Error: Runtime not available for sub-call spawning."
+
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._runtime.spawn_sub_instance(instruction))
+            return f"Sub-call spawned: {instruction[:200]}"
+        except RuntimeError:
+            return "Error: Could not spawn sub-call (no running event loop)."
