@@ -239,23 +239,21 @@ async def list_project_agents(
     )
 
 
-@router.delete("/{project_id}/agents/{agent_id}", status_code=202)
+@router.delete("/{project_id}/agents/{agent_id}", status_code=204)
 async def remove_agent(
     project_id: str,
     agent_id: str,
     db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Initiate graceful removal of an agent from a project.
+) -> None:
+    """Remove an agent from a project.
 
-    Returns 202 Accepted because actual removal happens asynchronously
-    after a 60-second grace period.
+    Returns 204 No Content on successful removal.
     """
     service = ProjectService(db)
     try:
         await service.remove_agent(project_id, agent_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"data": {"status": "removal_queued"}}
 
 
 # ---------------------------------------------------------------------------

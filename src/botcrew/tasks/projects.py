@@ -1,7 +1,7 @@
 """Celery tasks for project workspace operations.
 
-Handles GitHub clone/pull, workspace cleanup, and delayed agent removal
-finalization. All tasks are sync (Celery workers are sync processes).
+Handles GitHub clone/pull and workspace cleanup.
+All tasks are sync (Celery workers are sync processes).
 """
 
 import logging
@@ -9,9 +9,7 @@ import os
 import shutil
 import subprocess
 
-import sqlalchemy
 from botcrew.tasks.celery_app import celery_app
-from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -126,81 +124,3 @@ def cleanup_project_workspace(self, project_id: str) -> dict:
         raise self.retry(exc=exc)
 
 
-@celery_app.task(bind=True, max_retries=2, default_retry_delay=5)
-def finalize_agent_removal(self, project_id: str, agent_id: str) -> dict:
-    """Finalize agent removal from a project after grace period.
-
-    Called with countdown=60 by ProjectService to give the agent time to
-    wrap up. Creates its own sync DB session (Celery workers are sync).
-
-    Removes:
-    - ProjectAgent record linking agent to project
-    - ChannelMember record for the agent in the project channel
-
-    Args:
-        project_id: UUID string of the project.
-        agent_id: UUID string of the agent.
-
-    Returns:
-        Dict with status, project_id, and agent_id.
-    """
-    try:
-        from botcrew.config import get_settings
-
-        settings = get_settings()
-
-        # Build sync DB URL from async URL
-        sync_url = settings.database_url.replace(
-            "postgresql+asyncpg://", "postgresql://"
-        )
-        engine = sqlalchemy.create_engine(sync_url)
-
-        with Session(engine) as session:
-            # Delete ProjectAgent record
-            session.execute(
-                sqlalchemy.text(
-                    "DELETE FROM project_agents "
-                    "WHERE project_id = :project_id AND agent_id = :agent_id"
-                ),
-                {"project_id": project_id, "agent_id": agent_id},
-            )
-
-            # Find project channel_id and remove agent from channel membership
-            row = session.execute(
-                sqlalchemy.text(
-                    "SELECT channel_id FROM projects WHERE id = :project_id"
-                ),
-                {"project_id": project_id},
-            ).fetchone()
-
-            if row and row[0]:
-                channel_id = row[0]
-                session.execute(
-                    sqlalchemy.text(
-                        "DELETE FROM channel_members "
-                        "WHERE channel_id = :channel_id AND agent_id = :agent_id"
-                    ),
-                    {"channel_id": channel_id, "agent_id": agent_id},
-                )
-
-            session.commit()
-
-        engine.dispose()
-
-        logger.info(
-            "Finalized removal of agent %s from project %s",
-            agent_id,
-            project_id,
-        )
-        return {"status": "removed", "project_id": project_id, "agent_id": agent_id}
-
-    except Exception as exc:
-        logger.warning(
-            "Finalize removal failed for agent %s project %s (attempt %d/%d): %s",
-            agent_id,
-            project_id,
-            self.request.retries + 1,
-            self.max_retries + 1,
-            str(exc),
-        )
-        raise self.retry(exc=exc)

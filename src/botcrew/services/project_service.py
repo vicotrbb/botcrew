@@ -346,11 +346,10 @@ class ProjectService:
     async def remove_agent(
         self, project_id: str, agent_id: str
     ) -> None:
-        """Initiate graceful removal of an agent from a project.
+        """Remove an agent from a project immediately.
 
-        Queues a Celery task with 60-second countdown to finalize the
-        removal. Does NOT delete the ProjectAgent record immediately --
-        the Celery task handles that after the grace period.
+        Deletes the ProjectAgent record and removes the agent from the
+        project channel synchronously for immediate UI feedback.
 
         Args:
             project_id: UUID of the project.
@@ -369,12 +368,22 @@ class ProjectService:
         if assignment is None:
             raise ValueError("Agent is not assigned to this project")
 
-        from botcrew.tasks.projects import finalize_agent_removal
+        # Delete assignment immediately
+        await self.db.delete(assignment)
 
-        finalize_agent_removal.apply_async(
-            args=[str(project_id), str(agent_id)],
-            countdown=60,
-        )
+        # Remove from project channel
+        project = await self.get_project(project_id)
+        if project and project.channel_id:
+            from botcrew.models.channel import ChannelMember
+
+            await self.db.execute(
+                delete(ChannelMember).where(
+                    ChannelMember.channel_id == project.channel_id,
+                    ChannelMember.agent_id == agent_id,
+                )
+            )
+
+        await self.db.commit()
 
     # ------------------------------------------------------------------
     # GitHub sync
