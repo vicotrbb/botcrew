@@ -20,7 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from botcrew.api.deps import get_db, get_pod_manager
 from botcrew.models.agent import Agent
 from botcrew.models.project import Project, ProjectAgent, ProjectFile
+from botcrew.models.secret import Secret
 from botcrew.models.skill import Skill
+from botcrew.models.task import Task, TaskAgent, TaskSecret, TaskSkill
 from botcrew.schemas.internal import (
     ActivityCreateRequest,
     ActivityCreateResponse,
@@ -32,10 +34,12 @@ from botcrew.schemas.internal import (
     SkillCreateFromAgentRequest,
     StatusReportRequest,
     StatusReportResponse,
+    TaskAssignmentBoot,
 )
 from botcrew.services.activity_service import ActivityService
 from botcrew.services.agent_service import AgentService
 from botcrew.services.pod_manager import PodManager
+from botcrew.services.task_service import TaskService
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +96,26 @@ async def get_boot_config(
         for pa, proj in projects_result.all()
     ]
 
+    # Fetch task assignments for this agent
+    tasks_result = await db.execute(
+        select(TaskAgent, Task)
+        .join(Task, TaskAgent.task_id == Task.id)
+        .where(TaskAgent.agent_id == agent_id)
+    )
+    task_assignments = [
+        TaskAssignmentBoot(
+            task_id=str(ta.task_id),
+            task_name=task.name,
+            description=task.description,
+            directive_preview=(
+                task.directive[:200] + ("..." if len(task.directive) > 200 else "")
+            ),
+            status=task.status,
+            channel_id=str(task.channel_id) if task.channel_id else None,
+        )
+        for ta, task in tasks_result.all()
+    ]
+
     return BootConfigResponse(
         agent_id=str(agent.id),
         name=agent.name,
@@ -106,6 +130,7 @@ async def get_boot_config(
         secrets=secrets,
         skills=skill_summaries,
         projects=project_assignments,
+        tasks=task_assignments,
     )
 
 
@@ -494,3 +519,165 @@ async def backup_project_files(
         return {"data": {"files_backed_up": 0, "project_id": project_id}}
 
     return {"data": {"files_backed_up": count, "project_id": project_id}}
+
+
+# ---------------------------------------------------------------------------
+# Internal task endpoints (Phase 11)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/agents/{agent_id}/tasks")
+async def list_agent_tasks(
+    agent_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """List all task assignments for an agent.
+
+    Returns task summaries including name, description, status, and
+    channel_id for each task the agent is assigned to.
+    """
+    result = await db.execute(
+        select(TaskAgent, Task)
+        .join(Task, TaskAgent.task_id == Task.id)
+        .where(TaskAgent.agent_id == agent_id)
+    )
+    data = [
+        {
+            "task_id": str(ta.task_id),
+            "task_name": task.name,
+            "description": task.description,
+            "status": task.status,
+            "channel_id": str(task.channel_id) if task.channel_id else None,
+        }
+        for ta, task in result.all()
+    ]
+    return {"data": data}
+
+
+@router.get("/agents/{agent_id}/tasks/{task_id}")
+async def get_agent_task(
+    agent_id: str,
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get full task detail for an agent including secrets, skills, and agents.
+
+    Returns 404 if the task does not exist or the agent is not assigned.
+    Includes decrypted secret values, skill summaries, and other assigned
+    agent names for full task context.
+    """
+    # Verify agent is assigned to this task
+    result = await db.execute(
+        select(TaskAgent, Task)
+        .join(Task, TaskAgent.task_id == Task.id)
+        .where(TaskAgent.agent_id == agent_id)
+        .where(TaskAgent.task_id == task_id)
+    )
+    row = result.first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Task assignment not found")
+    _ta, task = row
+
+    # Fetch secrets assigned to this task
+    secrets_result = await db.execute(
+        select(TaskSecret, Secret)
+        .join(Secret, TaskSecret.secret_id == Secret.id)
+        .where(TaskSecret.task_id == task_id)
+    )
+    secrets = [
+        {"key": s.key, "value": s.value}
+        for _ts, s in secrets_result.all()
+    ]
+
+    # Fetch skills assigned to this task
+    skills_result = await db.execute(
+        select(TaskSkill, Skill)
+        .join(Skill, TaskSkill.skill_id == Skill.id)
+        .where(TaskSkill.task_id == task_id)
+    )
+    skills = [
+        {"name": s.name, "description": s.description}
+        for _tsk, s in skills_result.all()
+    ]
+
+    # Fetch all agents assigned to this task
+    agents_result = await db.execute(
+        select(TaskAgent, Agent)
+        .join(Agent, TaskAgent.agent_id == Agent.id)
+        .where(TaskAgent.task_id == task_id)
+    )
+    agents = [
+        {"agent_id": str(a.id), "name": a.name}
+        for _ta2, a in agents_result.all()
+    ]
+
+    return {
+        "data": {
+            "task_id": str(task.id),
+            "task_name": task.name,
+            "description": task.description,
+            "directive": task.directive,
+            "notes": task.notes,
+            "status": task.status,
+            "channel_id": str(task.channel_id) if task.channel_id else None,
+            "secrets": secrets,
+            "skills": skills,
+            "agents": agents,
+        }
+    }
+
+
+@router.patch("/agents/{agent_id}/tasks/{task_id}")
+async def update_agent_task(
+    agent_id: str,
+    task_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update task status and/or append a note as an agent.
+
+    Accepts plain JSON body with optional ``status`` and/or ``note`` fields.
+    Verifies the agent is assigned before allowing updates. Notes are
+    appended with timestamp attribution using the agent's display name.
+    """
+    # Verify agent is assigned to this task
+    assignment = await db.execute(
+        select(TaskAgent).where(
+            TaskAgent.agent_id == agent_id,
+            TaskAgent.task_id == task_id,
+        )
+    )
+    if assignment.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=403, detail="Agent is not assigned to this task"
+        )
+
+    task = await db.get(Task, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # Update status if provided
+    if "status" in body:
+        task.status = body["status"]
+
+    # Append note if provided
+    if "note" in body:
+        # Look up agent name for note attribution
+        agent = await db.get(Agent, agent_id)
+        agent_name = agent.name if agent else agent_id
+
+        task_service = TaskService(db)
+        await task_service.append_note(task_id, agent_name, body["note"])
+
+        # Re-fetch task after note append (append_note commits)
+        task = await db.get(Task, task_id)
+    else:
+        await db.commit()
+
+    return {
+        "data": {
+            "task_id": task_id,
+            "status": task.status,
+            "updated": True,
+        }
+    }

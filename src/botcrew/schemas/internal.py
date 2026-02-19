@@ -40,6 +40,10 @@ class BootConfigResponse(BaseModel):
         default_factory=list,
         description="Active project assignments with goals, specs, and workspace paths",
     )
+    tasks: list[TaskAssignmentBoot] = Field(
+        default_factory=list,
+        description="Active task assignments with directive preview and status",
+    )
 
 
 class StatusReportRequest(BaseModel):
@@ -157,4 +161,18 @@ class ProjectAssignmentBoot(BaseModel):
     specs: str | None = None
     role_prompt: str | None = None
     workspace_path: str
+    channel_id: str | None = None
+
+
+# --- Task schemas (Phase 11) ---
+
+
+class TaskAssignmentBoot(BaseModel):
+    """Task assignment info included in agent boot-config."""
+
+    task_id: str
+    task_name: str
+    description: str | None = None
+    directive_preview: str  # First 200 chars of directive
+    status: str
     channel_id: str | None = None
