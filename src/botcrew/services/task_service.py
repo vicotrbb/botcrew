@@ -192,13 +192,17 @@ class TaskService:
             delete(TaskSkill).where(TaskSkill.task_id == task_id)
         )
 
-        # 4. Channel cleanup
+        # 4. Channel cleanup -- clear FK on task first, then delete channel
         if task.channel_id:
             from botcrew.models.channel import Channel, ChannelMember
             from botcrew.models.message import Message
             from botcrew.models.read_cursor import ReadCursor
 
             channel_id = task.channel_id
+
+            # Clear channel reference on task before deleting channel (FK constraint)
+            task.channel_id = None
+            await self.db.flush()
 
             await self.db.execute(
                 delete(ReadCursor).where(ReadCursor.channel_id == channel_id)
