@@ -127,6 +127,25 @@ export const updateProjectSchema = z.object({
 });
 
 /**
+ * Zod schema for task creation form validation.
+ */
+export const createTaskSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or fewer'),
+  description: z.string().optional(),
+  directive: z.string().min(1, 'Directive is required'),
+});
+
+/**
+ * Zod schema for task update form validation. All fields optional.
+ */
+export const updateTaskSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().optional(),
+  directive: z.string().min(1).optional(),
+  status: z.enum(['open', 'done']).optional(),
+});
+
+/**
  * Inferred types from Zod schemas for form usage.
  */
 export type CreateAgentInput = z.infer<typeof createAgentSchema>;
@@ -140,3 +159,5 @@ export type AIProviderIntegrationInput = z.infer<typeof aiProviderIntegrationSch
 export type GitHubIntegrationInput = z.infer<typeof githubIntegrationSchema>;
 export type CreateProjectFormInput = z.infer<typeof createProjectSchema>;
 export type UpdateProjectFormInput = z.infer<typeof updateProjectSchema>;
+export type CreateTaskFormInput = z.infer<typeof createTaskSchema>;
+export type UpdateTaskFormInput = z.infer<typeof updateTaskSchema>;
