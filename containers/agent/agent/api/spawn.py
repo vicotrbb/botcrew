@@ -1,8 +1,10 @@
 """Spawn endpoint -- fire-and-forget sub-instance for parallel work.
 
-POST /spawn creates an asyncio task that processes a given prompt
-through the same AgentRuntime pipeline, enabling the agent to
-handle multiple tasks in parallel during heartbeat.
+POST /spawn creates an asyncio task that runs a given prompt through
+a fresh isolated Agent instance with the same model and tools,
+enabling the agent to handle multiple tasks in parallel during
+heartbeat.  Sub-instances cannot spawn further sub-instances
+(depth=1 enforcement).
 """
 
 from __future__ import annotations
@@ -31,9 +33,9 @@ class SpawnResponse(BaseModel):
 async def spawn(request: Request, body: SpawnRequest) -> SpawnResponse | JSONResponse:
     """Spawn a sub-instance for parallel work.
 
-    Creates an asyncio task running the prompt through the same
-    AgentRuntime.process_message() pipeline.  The sub-instance is
-    fire-and-forget -- the caller gets an immediate response.
+    Creates an asyncio task running the prompt through a fresh isolated
+    Agent instance.  The sub-instance is fire-and-forget -- the caller
+    gets an immediate response.
 
     Returns:
         SpawnResponse with status and current active sub-instance count.

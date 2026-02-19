@@ -1,9 +1,15 @@
 """AgentRuntime -- Agno Agent wrapper for the agent container.
 
-Wraps an Agno ``Agent`` instance with all nine toolkits (BrowserTools,
-MemoryTools, SelfTools, CommunicationTools, CodingTools, DuckDuckGoTools,
-SkillTools, ProjectTools, TaskTools), providing a ``process_message()``
-interface used by /message, /wake, and heartbeat.
+Wraps an Agno ``Agent`` instance with all twelve toolkits (ShellTools,
+SleepTools, FileTools, BrowserTools, MemoryTools, SelfTools,
+CommunicationTools, CodingTools, DuckDuckGoTools, SkillTools,
+ProjectTools, TaskTools), providing a ``process_message()`` interface
+used by /message, /wake, and heartbeat.
+
+Sub-instances are spawned via ``spawn_sub_instance()`` which creates a
+fresh isolated Agent with the same model and tools but an independent
+session.  Sub-instances cannot spawn further sub-instances (depth=1
+enforcement via ``is_sub_call`` flag on SelfTools).
 
 The runtime is initialised during the FastAPI lifespan startup, after
 the boot sequence has fetched configuration from the orchestrator.
@@ -38,14 +44,14 @@ logger = logging.getLogger(__name__)
 
 
 class AgentRuntime:
-    """Core runtime wrapping an Agno Agent with all nine toolkits.
+    """Core runtime wrapping an Agno Agent with all twelve toolkits.
 
     Lifecycle:
     1. ``__init__`` stores config, settings, sub-instance tracking
     2. ``initialize()`` creates the Agno Agent with all toolkits
     3. ``set_heartbeat()`` links the HeartbeatTimer after both objects exist
     4. ``process_message()`` runs user/heartbeat input through the agent
-    5. ``spawn_sub_instance()`` fires off a parallel asyncio task
+    5. ``spawn_sub_instance()`` creates isolated sub-agents for parallel work
     """
 
     def __init__(self, config: dict[str, Any], settings: AgentSettings) -> None:
@@ -63,7 +69,6 @@ class AgentRuntime:
         self._heartbeat: Any | None = None
         self._self_tools: SelfTools | None = None
         self._active_sub_instances = 0
-        self._max_sub_instances = config.get("max_sub_instances", 3)
 
     async def initialize(self) -> None:
         """Create the Agno Agent instance with model and tools.
@@ -357,42 +362,122 @@ class AgentRuntime:
     # ------------------------------------------------------------------
 
     async def spawn_sub_instance(self, task_prompt: str) -> str:
-        """Spawn a fire-and-forget sub-instance for parallel work.
+        """Spawn a fire-and-forget sub-instance with isolated Agent context.
 
-        Sub-instances run through the same ``process_message()`` pipeline
-        and share the same context, tools, and capabilities.
+        Each sub-instance gets a fresh Agno Agent with the same model, tools,
+        and instructions but an isolated session. Sub-instances cannot spawn
+        further sub-instances (depth=1 enforcement via is_sub_call flag).
 
         Args:
-            task_prompt: The prompt to process in the sub-instance.
+            task_prompt: The scoped instruction for the sub-instance.
 
         Returns:
-            Status message indicating success or concurrency cap reached.
+            Status message indicating the sub-instance was spawned.
         """
-        if self._active_sub_instances >= self._max_sub_instances:
-            return (
-                f"Cannot spawn: at maximum ({self._max_sub_instances}) "
-                "concurrent sub-instances."
-            )
         self._active_sub_instances += 1
         task = asyncio.create_task(self._run_sub_instance(task_prompt))
         task.add_done_callback(lambda _: self._on_sub_instance_done())
         return "Sub-instance spawned successfully."
 
     async def _run_sub_instance(self, prompt: str) -> str:
-        """Run a sub-instance through process_message.
+        """Run a sub-instance with its own Agent and session.
 
-        Exceptions are caught and logged -- sub-instance failures must
-        never crash the parent agent.
+        Creates a fresh Agno Agent with the same model and tools (but
+        SelfTools has is_sub_call=True to prevent recursive spawning).
+        Uses a unique session_id for complete isolation.
         """
+        import uuid
+
         try:
-            return await self.process_message(prompt)
+            sub_agent = self._create_sub_agent()
+            response = await sub_agent.arun(
+                prompt,
+                session_id=str(uuid.uuid4()),
+            )
+            return response.content
         except Exception:
-            logger.exception("Sub-instance failed")
+            logger.exception("Sub-instance failed for prompt: %s", prompt[:100])
             return ""
 
     def _on_sub_instance_done(self) -> None:
         """Decrement active sub-instance counter when a task completes."""
         self._active_sub_instances = max(0, self._active_sub_instances - 1)
+
+    def _create_sub_agent(self) -> Agent:
+        """Create a fresh Agent for sub-call execution.
+
+        Uses same model, instructions, and tools as parent, but:
+        - Fresh session (no shared conversation history)
+        - SelfTools has is_sub_call=True (no recursive spawning)
+        - No SqliteDb (ephemeral -- sub-call history not persisted)
+        """
+        model = create_model(
+            self.config["model_provider"],
+            self.config["model_name"],
+            self.config.get("secrets", {}),
+        )
+
+        sub_self_tools = SelfTools(
+            orchestrator_url=self.settings.orchestrator_url,
+            agent_id=self.settings.agent_id,
+            runtime=None,
+            heartbeat=None,
+            is_sub_call=True,
+        )
+
+        tools = [
+            ShellTools(),
+            SleepTools(),
+            FileTools(),
+            BrowserTools(browser_url=self.settings.browser_sidecar_url),
+            MemoryTools(
+                orchestrator_url=self.settings.orchestrator_url,
+                agent_id=self.settings.agent_id,
+            ),
+            sub_self_tools,
+            CommunicationTools(
+                orchestrator_url=self.settings.orchestrator_url,
+                agent_id=self.settings.agent_id,
+            ),
+            CodingTools(
+                base_dir=Path(f"/workspace/agents/{self.settings.agent_id}"),
+                restrict_to_base_dir=False,
+                all=True,
+                shell_timeout=120,
+                max_lines=2000,
+                max_bytes=50_000,
+            ),
+            DuckDuckGoTools(
+                enable_search=True,
+                enable_news=True,
+                timeout=10,
+                fixed_max_results=10,
+            ),
+            SkillTools(
+                orchestrator_url=self.settings.orchestrator_url,
+                agent_id=self.settings.agent_id,
+            ),
+            ProjectTools(
+                orchestrator_url=self.settings.orchestrator_url,
+                agent_id=self.settings.agent_id,
+            ),
+            TaskTools(
+                orchestrator_url=self.settings.orchestrator_url,
+                agent_id=self.settings.agent_id,
+            ),
+        ]
+
+        return Agent(
+            model=model,
+            name=self.config["name"],
+            description=self.config.get("identity", ""),
+            instructions=self._agent.instructions if self._agent else None,
+            tools=tools,
+            add_datetime_to_context=True,
+            markdown=True,
+            # No db -- sub-call history is ephemeral
+            # No add_history_to_context -- clean slate each sub-call
+        )
 
     @property
     def is_ready(self) -> bool:
