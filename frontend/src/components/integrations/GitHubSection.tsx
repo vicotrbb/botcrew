@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { IntegrationSummary } from '@/types/integration';
 import { useCreateIntegration, useUpdateIntegration } from '@/hooks/use-integrations';
 import { githubIntegrationSchema, type GitHubIntegrationInput } from '@/lib/schemas';
@@ -104,6 +105,14 @@ function GitHubDialog({
     defaultValues,
   });
 
+  useEffect(() => {
+    if (open && editingIntegration) {
+      reset(getDefaults(editingIntegration));
+    } else if (open && !editingIntegration) {
+      reset(getDefaults(undefined));
+    }
+  }, [open, editingIntegration, reset]);
+
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
       reset(getDefaults(undefined));
@@ -120,16 +129,18 @@ function GitHubDialog({
           name: data.name,
           config: JSON.stringify({ token: data.token, default_org: data.default_org }),
         });
+        toast.success('GitHub integration updated');
       } else {
         await createMutation.mutateAsync({
           name: data.name,
           integration_type: 'github',
           config: JSON.stringify({ token: data.token, default_org: data.default_org }),
         });
+        toast.success('GitHub integration created');
       }
       handleOpenChange(false);
     } catch {
-      // Error displayed by mutation state
+      toast.error('Something went wrong. Please try again.');
     }
   }
 

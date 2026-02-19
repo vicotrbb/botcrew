@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { IntegrationSummary } from '@/types/integration';
 import { useCreateIntegration, useUpdateIntegration } from '@/hooks/use-integrations';
 import { aiProviderIntegrationSchema, type AIProviderIntegrationInput } from '@/lib/schemas';
@@ -122,6 +123,14 @@ function AIProviderDialog({
 
   const provider = watch('provider');
 
+  useEffect(() => {
+    if (open && editingIntegration) {
+      reset(getDefaults(editingIntegration));
+    } else if (open && !editingIntegration) {
+      reset(getDefaults(undefined));
+    }
+  }, [open, editingIntegration, reset]);
+
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
       reset(getDefaults(undefined));
@@ -138,16 +147,18 @@ function AIProviderDialog({
           name: data.name,
           config: JSON.stringify({ provider: data.provider, api_key: data.api_key }),
         });
+        toast.success('AI provider updated');
       } else {
         await createMutation.mutateAsync({
           name: data.name,
           integration_type: 'ai_provider',
           config: JSON.stringify({ provider: data.provider, api_key: data.api_key }),
         });
+        toast.success('AI provider created');
       }
       handleOpenChange(false);
     } catch {
-      // Error displayed by mutation state
+      toast.error('Something went wrong. Please try again.');
     }
   }
 
