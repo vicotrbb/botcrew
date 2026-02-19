@@ -1,9 +1,9 @@
 """AgentRuntime -- Agno Agent wrapper for the agent container.
 
-Wraps an Agno ``Agent`` instance with all eight toolkits (BrowserTools,
+Wraps an Agno ``Agent`` instance with all nine toolkits (BrowserTools,
 MemoryTools, SelfTools, CommunicationTools, CodingTools, DuckDuckGoTools,
-SkillTools, ProjectTools), providing a ``process_message()`` interface
-used by /message, /wake, and heartbeat.
+SkillTools, ProjectTools, TaskTools), providing a ``process_message()``
+interface used by /message, /wake, and heartbeat.
 
 The runtime is initialised during the FastAPI lifespan startup, after
 the boot sequence has fetched configuration from the orchestrator.
@@ -18,6 +18,9 @@ from typing import Any
 
 from agno.agent import Agent
 from agno.db.sqlite import SqliteDb
+from agno.tools.sleep import SleepTools
+from agno.tools.file import FileTools
+from agno.tools.shell import ShellTools
 from agno.tools.coding import CodingTools
 from agno.tools.duckduckgo import DuckDuckGoTools
 
@@ -29,12 +32,13 @@ from agent.tools.memory_tools import MemoryTools
 from agent.tools.self_tools import SelfTools
 from agent.tools.project_tools import ProjectTools
 from agent.tools.skill_tools import SkillTools
+from agent.tools.task_tools import TaskTools
 
 logger = logging.getLogger(__name__)
 
 
 class AgentRuntime:
-    """Core runtime wrapping an Agno Agent with all eight toolkits.
+    """Core runtime wrapping an Agno Agent with all nine toolkits.
 
     Lifecycle:
     1. ``__init__`` stores config, settings, sub-instance tracking
@@ -66,9 +70,9 @@ class AgentRuntime:
 
         Creates the AI model via the local model factory, builds
         instructions from identity + personality + skill summaries +
-        project assignments, and registers all eight toolkits (Browser,
-        Memory, Self, Communication, Coding, DuckDuckGo, Skills,
-        Projects).
+        project assignments + task assignments, and registers all nine
+        toolkits (Browser, Memory, Self, Communication, Coding,
+        DuckDuckGo, Skills, Projects, Tasks).
         """
         logger.info("Initializing AgentRuntime for '%s'", self.config["name"])
 
@@ -77,7 +81,9 @@ class AgentRuntime:
         try:
             agent_workspace.mkdir(parents=True, exist_ok=True)
         except OSError:
-            logger.warning("Could not create agent workspace directory: %s", agent_workspace)
+            logger.warning(
+                "Could not create agent workspace directory: %s", agent_workspace
+            )
 
         # SQLite database for conversation history persistence
         agent_db = SqliteDb(
@@ -103,8 +109,7 @@ class AgentRuntime:
         if skills:
             skills_section = "\n\n## Available Skills\n"
             skills_section += (
-                "Use load_skill(name) to get full instructions "
-                "for any skill.\n\n"
+                "Use load_skill(name) to get full instructions " "for any skill.\n\n"
             )
             for s in skills:
                 skills_section += f"- **{s['name']}**: {s['description']}\n"
@@ -123,7 +128,9 @@ class AgentRuntime:
                 "Use project_tools to get details and backup files.\n\n"
             )
             for p in projects:
-                projects_section += f"- **{p['project_name']}** (workspace: {p['workspace_path']})"
+                projects_section += (
+                    f"- **{p['project_name']}** (workspace: {p['workspace_path']})"
+                )
                 if p.get("role_prompt"):
                     projects_section += f"\n  Role: {p['role_prompt']}"
                 if p.get("goals"):
@@ -138,6 +145,26 @@ class AgentRuntime:
             else:
                 instructions = projects_section.strip()
 
+        # Inject task assignments into system prompt
+        tasks = self.config.get("tasks", [])
+        if tasks:
+            tasks_section = "\n\n## Assigned Tasks\n"
+            tasks_section += (
+                "You have tasks assigned. Use task_tools to get full details "
+                "and update status when complete.\n\n"
+            )
+            for t in tasks:
+                status = t.get("status", "unknown")
+                tasks_section += f"- **{t['task_name']}** [{status}]"
+                desc = t.get("description")
+                if desc:
+                    tasks_section += f" -- {desc}"
+                tasks_section += "\n"
+            if instructions:
+                instructions += tasks_section
+            else:
+                instructions = tasks_section.strip()
+
         # Create toolkits
         self._self_tools = SelfTools(
             orchestrator_url=self.settings.orchestrator_url,
@@ -147,6 +174,9 @@ class AgentRuntime:
         )
 
         tools = [
+            ShellTools(),
+            SleepTools(),
+            FileTools(),
             BrowserTools(browser_url=self.settings.browser_sidecar_url),
             MemoryTools(
                 orchestrator_url=self.settings.orchestrator_url,
@@ -176,6 +206,10 @@ class AgentRuntime:
                 agent_id=self.settings.agent_id,
             ),
             ProjectTools(
+                orchestrator_url=self.settings.orchestrator_url,
+                agent_id=self.settings.agent_id,
+            ),
+            TaskTools(
                 orchestrator_url=self.settings.orchestrator_url,
                 agent_id=self.settings.agent_id,
             ),
@@ -230,8 +264,7 @@ class AgentRuntime:
         if skills:
             skills_section = "\n\n## Available Skills\n"
             skills_section += (
-                "Use load_skill(name) to get full instructions "
-                "for any skill.\n\n"
+                "Use load_skill(name) to get full instructions " "for any skill.\n\n"
             )
             for s in skills:
                 skills_section += f"- **{s['name']}**: {s['description']}\n"
@@ -250,7 +283,9 @@ class AgentRuntime:
                 "Use project_tools to get details and backup files.\n\n"
             )
             for p in projects:
-                projects_section += f"- **{p['project_name']}** (workspace: {p['workspace_path']})"
+                projects_section += (
+                    f"- **{p['project_name']}** (workspace: {p['workspace_path']})"
+                )
                 if p.get("role_prompt"):
                     projects_section += f"\n  Role: {p['role_prompt']}"
                 if p.get("goals"):
@@ -263,6 +298,26 @@ class AgentRuntime:
                 self._agent.instructions += projects_section
             else:
                 self._agent.instructions = projects_section.strip()
+
+        # Re-inject task assignments after identity/personality rebuild
+        tasks = self.config.get("tasks", [])
+        if tasks:
+            tasks_section = "\n\n## Assigned Tasks\n"
+            tasks_section += (
+                "You have tasks assigned. Use task_tools to get full details "
+                "and update status when complete.\n\n"
+            )
+            for t in tasks:
+                status = t.get("status", "unknown")
+                tasks_section += f"- **{t['task_name']}** [{status}]"
+                desc = t.get("description")
+                if desc:
+                    tasks_section += f" -- {desc}"
+                tasks_section += "\n"
+            if self._agent.instructions:
+                self._agent.instructions += tasks_section
+            else:
+                self._agent.instructions = tasks_section.strip()
 
     async def process_message(
         self,
@@ -294,8 +349,7 @@ class AgentRuntime:
         except Exception as exc:
             logger.error("Error processing message: %s", exc, exc_info=True)
             return (
-                "I encountered an error processing your message. "
-                "Please try again."
+                "I encountered an error processing your message. " "Please try again."
             )
 
     # ------------------------------------------------------------------
