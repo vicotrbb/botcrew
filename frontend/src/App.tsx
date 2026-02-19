@@ -9,6 +9,7 @@ import { NotFoundPage } from './pages/not-found';
 import { ProjectsPage } from './pages/projects';
 import { SecretsPage } from './pages/secrets';
 import { SkillsPage } from './pages/skills';
+import { Toaster } from '@/components/ui/sonner';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,6 +38,7 @@ export function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      <Toaster />
     </QueryClientProvider>
   );
 }
