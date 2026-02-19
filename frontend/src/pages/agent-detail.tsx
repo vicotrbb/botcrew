@@ -10,6 +10,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import MDEditor from '@uiw/react-md-editor';
+import { toast } from 'sonner';
 import { updateAgentSchema } from '@/lib/schemas';
 import type { UpdateAgentInput } from '@/types/agent';
 import {
@@ -156,7 +157,13 @@ function MemorySection({ agentId }: { agentId: string }) {
     updateMemory.mutate(
       { content: memoryText } as Record<string, unknown>,
       {
-        onSuccess: () => setIsDirty(false),
+        onSuccess: () => {
+          setIsDirty(false);
+          toast.success('Memory saved');
+        },
+        onError: () => {
+          toast.error('Something went wrong. Please try again.');
+        },
       },
     );
   }
@@ -204,11 +211,6 @@ function MemorySection({ agentId }: { agentId: string }) {
             )}
           </Button>
         </div>
-        {updateMemory.error && (
-          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-            {updateMemory.error.message}
-          </div>
-        )}
       </CardContent>
     </Card>
   );
@@ -266,13 +268,26 @@ export function AgentDetailPage() {
 
     if (Object.keys(changedData).length === 0) return;
 
-    updateAgent.mutate(changedData as UpdateAgentInput);
+    updateAgent.mutate(changedData as UpdateAgentInput, {
+      onSuccess: () => {
+        toast.success('Agent updated');
+      },
+      onError: () => {
+        toast.error('Something went wrong. Please try again.');
+      },
+    });
   }
 
   function handleDelete() {
     if (!id) return;
     deleteAgent.mutate(id, {
-      onSuccess: () => navigate('/agents'),
+      onSuccess: () => {
+        toast.success('Agent deleted');
+        navigate('/agents');
+      },
+      onError: () => {
+        toast.error('Something went wrong. Please try again.');
+      },
     });
   }
 
@@ -394,13 +409,6 @@ export function AgentDetailPage() {
                 <HeartbeatPromptField control={form.control} />
               </CardContent>
             </Card>
-
-            {/* Save + Error */}
-            {updateAgent.error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                {updateAgent.error.message}
-              </div>
-            )}
 
             <div className="flex justify-end">
               <Button
