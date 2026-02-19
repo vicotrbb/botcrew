@@ -1,5 +1,6 @@
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 import { GripVertical } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAgents } from '@/hooks/use-agents';
 import { useProjectAgents, useAssignAgent, useRemoveAgent } from '@/hooks/use-projects';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -33,10 +34,27 @@ export function AgentAssignment({ projectId }: AgentAssignmentProps) {
     const { source, destination, draggableId } = result;
 
     if (source.droppableId === 'available' && destination.droppableId === 'assigned') {
-      assignAgent.mutate({ agent_id: draggableId });
+      assignAgent.mutate(
+        { agent_id: draggableId },
+        {
+          onSuccess: () => {
+            toast.success('Agent assigned to project');
+          },
+          onError: () => {
+            toast.error('Something went wrong. Please try again.');
+          },
+        },
+      );
     } else if (source.droppableId === 'assigned' && destination.droppableId === 'available') {
       // draggableId for assigned items is the agent_id
-      removeAgent.mutate(draggableId);
+      removeAgent.mutate(draggableId, {
+        onSuccess: () => {
+          toast.success('Agent removed from project');
+        },
+        onError: () => {
+          toast.error('Something went wrong. Please try again.');
+        },
+      });
     }
   }
 
