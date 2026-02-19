@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router';
-import { Bot, BookOpen, FolderKanban, KeyRound, MessageSquare, Settings } from 'lucide-react';
+import { Bot, BookOpen, ClipboardList, FolderKanban, KeyRound, MessageSquare, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -46,6 +46,20 @@ export function Sidebar({ isChatOpen, onToggleChat }: SidebarProps) {
         >
           <FolderKanban className="size-4" />
           Projects
+        </NavLink>
+        <NavLink
+          to="/tasks"
+          className={({ isActive }) =>
+            cn(
+              'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              isActive
+                ? 'bg-accent text-accent-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50',
+            )
+          }
+        >
+          <ClipboardList className="size-4" />
+          Tasks
         </NavLink>
         <NavLink
           to="/skills"
