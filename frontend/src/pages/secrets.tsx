@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Plus, AlertCircle, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useSecrets, useDeleteSecret } from '@/hooks/use-secrets';
 import { SecretsTable } from '@/components/secrets/SecretsTable';
-import { SecretDialog } from '@/components/secrets/SecretDialog';
+import { SecretSheet } from '@/components/secrets/SecretSheet';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -59,7 +60,13 @@ export function SecretsPage() {
   function confirmDelete() {
     if (!deleteConfirmId) return;
     deleteMutation.mutate(deleteConfirmId, {
-      onSuccess: () => setDeleteConfirmId(null),
+      onSuccess: () => {
+        toast.success('Secret deleted');
+        setDeleteConfirmId(null);
+      },
+      onError: () => {
+        toast.error('Something went wrong. Please try again.');
+      },
     });
   }
 
@@ -103,8 +110,8 @@ export function SecretsPage() {
         </Card>
       )}
 
-      {/* Create / Edit Dialog */}
-      <SecretDialog
+      {/* Create / Edit Sheet */}
+      <SecretSheet
         secretId={selectedSecretId}
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}

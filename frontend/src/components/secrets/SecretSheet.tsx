@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -42,7 +42,9 @@ export function SecretSheet({ secretId, open, onOpenChange }: SecretSheetProps) 
   const updateMutation = useUpdateSecret(secretId ?? '');
 
   const form = useForm<CreateSecretInput>({
-    resolver: zodResolver(isEdit ? updateSecretSchema : createSecretSchema),
+    resolver: zodResolver(
+      isEdit ? updateSecretSchema : createSecretSchema,
+    ) as Resolver<CreateSecretInput>,
     defaultValues: {
       key: '',
       value: '',
