@@ -85,8 +85,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             interval=config.get("heartbeat_interval_seconds", 300),
             prompt=config.get(
                 "heartbeat_prompt",
-                "Wake up and check for new messages. Review any active projects. "
-                "If there's work to do, do it. If not, reflect on what you could improve or learn.",
+                "Check your assigned tasks and projects for work that needs attention.\n\n"
+                "Use list_my_tasks and list_my_projects to see current assignments. "
+                "Read your memory to recall what you did previously and avoid re-doing completed work.\n\n"
+                "For each item that needs work right now, use self_invoke with a focused instruction "
+                "describing exactly what to do. Each sub-call runs independently with full tool access.\n\n"
+                "When nothing needs attention, consider improving yourself -- reflect on recent work, "
+                "update your identity or personality, or refine this heartbeat prompt.\n\n"
+                "Only send messages to channels when you have something meaningful to share.",
             ),
             on_activity=log_activity,
         )
