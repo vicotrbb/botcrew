@@ -8,6 +8,7 @@ from botcrew.models.project import Project, ProjectAgent
 from botcrew.models.read_cursor import ReadCursor
 from botcrew.models.secret import Secret
 from botcrew.models.skill import Skill
+from botcrew.models.task import Task, TaskAgent, TaskSecret, TaskSkill
 
 __all__ = [
     "Base",
@@ -24,4 +25,8 @@ __all__ = [
     "ReadCursor",
     "Secret",
     "Skill",
+    "Task",
+    "TaskAgent",
+    "TaskSecret",
+    "TaskSkill",
 ]
