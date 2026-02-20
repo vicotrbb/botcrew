@@ -428,6 +428,25 @@ async def mark_messages_read(
 # ---------------------------------------------------------------------------
 
 
+@router.post("/dm-channel/{agent_id}")
+async def get_or_create_dm_channel(
+    agent_id: str,
+    user_identifier: str = Query(default="user"),
+    db: AsyncSession = Depends(get_db),
+) -> JSONAPISingleResponse:
+    """Get or create a DM channel between the current user and an agent.
+
+    Returns an existing DM channel if one exists, or creates a new one.
+    Used by the frontend DM section for lazy channel creation on first click.
+    """
+    service = ChannelService(db)
+    channel = await service.get_or_create_dm_channel(
+        agent_id=agent_id,
+        user_identifier=user_identifier,
+    )
+    return JSONAPISingleResponse(data=_channel_resource(channel))
+
+
 @router.post("/dm/{agent_id}", status_code=202)
 async def send_direct_message(
     agent_id: str,

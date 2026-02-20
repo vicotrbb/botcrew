@@ -36,6 +36,10 @@ export async function addChannelMember(
  * Backend expects DELETE /channels/{id}/members with JSON body { agent_id }.
  * There is NO path parameter for the member.
  */
+export async function getDmChannel(agentId: string): Promise<Channel> {
+  return postJSON<Omit<Channel, 'id'>>(`/channels/dm-channel/${agentId}`, {}, 'channels');
+}
+
 export async function removeChannelMember(
   channelId: string,
   agentId: string,

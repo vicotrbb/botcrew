@@ -5,6 +5,7 @@ import {
   getChannel,
   createChannel,
   deleteChannel,
+  getDmChannel,
   addChannelMember,
   removeChannelMember,
 } from '@/api/channels';
@@ -76,6 +77,16 @@ export function useRemoveChannelMember() {
       void queryClient.invalidateQueries({
         queryKey: ['channels', variables.channelId],
       });
+    },
+  });
+}
+
+export function useGetDmChannel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (agentId: string) => getDmChannel(agentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['channels'] });
     },
   });
 }

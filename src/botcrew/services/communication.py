@@ -177,13 +177,23 @@ class CommunicationService:
         await self._transport.deliver_to_channel(channel_id, ws_msg)
 
         # 4. Handle @mentions -- deliver to mentioned agents
-        await self._handle_mentions(
+        mentioned_agent_ids = await self._handle_mentions(
             channel_id=channel_id,
             content=content,
             sender_type=sender_type,
             sender_id=sender_id,
             message_id=str(msg.id),
         )
+
+        # 5. Instant reply evaluation -- ONLY for user messages (bot-loop prevention)
+        if sender_user_identifier and not sender_agent_id:
+            await self._handle_instant_replies(
+                channel_id=channel_id,
+                content=content,
+                message_id=str(msg.id),
+                sender_user_identifier=sender_user_identifier,
+                exclude_agent_ids=mentioned_agent_ids,
+            )
 
         return msg
 
@@ -307,7 +317,7 @@ class CommunicationService:
         sender_type: str,
         sender_id: str | None,
         message_id: str,
-    ) -> None:
+    ) -> set[str]:
         """Parse @mentions in message content and deliver to mentioned agents.
 
         Uses a simple regex to find @name patterns, then queries channel
@@ -320,15 +330,19 @@ class CommunicationService:
             sender_type: 'user' or 'agent'.
             sender_id: Identifier of the message sender.
             message_id: UUID of the persisted message.
+
+        Returns:
+            Set of agent ID strings that were dispatched via @mention delivery.
         """
+        mentioned_agent_ids: set[str] = set()
         mentioned_names = _MENTION_PATTERN.findall(content)
         if not mentioned_names:
-            return
+            return mentioned_agent_ids
 
         # Get all agent IDs in this channel
         agent_ids = await self._channel_service.get_channel_agent_ids(channel_id)
         if not agent_ids:
-            return
+            return mentioned_agent_ids
 
         # Query agents by ID to match names against mentions
         from sqlalchemy import select
@@ -367,3 +381,48 @@ class CommunicationService:
                     channel_id,
                 )
                 await self._transport.deliver_to_agent(str(agent.id), dm_payload)
+                mentioned_agent_ids.add(str(agent.id))
+
+        return mentioned_agent_ids
+
+    async def _handle_instant_replies(
+        self,
+        channel_id: str,
+        content: str,
+        message_id: str,
+        sender_user_identifier: str,
+        exclude_agent_ids: set[str] | None = None,
+    ) -> None:
+        """Dispatch instant reply evaluation to all agents in the channel.
+
+        Each agent receives a Celery task to evaluate relevance and optionally
+        respond. Agents already dispatched via @mentions are excluded to prevent
+        duplicate responses.
+
+        Args:
+            channel_id: UUID of the channel.
+            content: Message text content.
+            message_id: UUID of the persisted message.
+            sender_user_identifier: Identifier of the sending user.
+            exclude_agent_ids: Agent IDs to skip (already dispatched via @mentions).
+        """
+        from botcrew.tasks.messaging import evaluate_instant_reply
+
+        agent_ids = await self._channel_service.get_channel_agent_ids(channel_id)
+        exclude = exclude_agent_ids or set()
+
+        # Determine if this is a DM channel (agent always responds in DMs)
+        channel = await self._channel_service.get_channel(channel_id)
+        is_dm = channel is not None and channel.channel_type == "dm"
+
+        for agent_id in agent_ids:
+            if agent_id in exclude:
+                continue
+            evaluate_instant_reply.delay(
+                agent_id=agent_id,
+                channel_id=channel_id,
+                message_content=content,
+                message_id=message_id,
+                sender_user_identifier=sender_user_identifier,
+                is_dm=is_dm,
+            )

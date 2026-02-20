@@ -160,6 +160,7 @@ class ChannelService:
         )
         return await self.create_channel(
             name="DM",
+            description=agent_id,  # Store agent_id for frontend DM channel mapping
             channel_type="dm",
             agent_ids=[agent_id],
             creator_user_identifier=user_identifier,
