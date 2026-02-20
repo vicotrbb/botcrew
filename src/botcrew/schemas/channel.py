@@ -16,7 +16,7 @@ class CreateChannelRequest(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=100)
     description: str | None = None
-    channel_type: str = Field(default="shared", pattern="^(shared|dm|custom)$")
+    channel_type: str = Field(default="shared", pattern="^(shared|dm|custom|project|task)$")
     agent_ids: list[str] = Field(default_factory=list)
     creator_user_identifier: str | None = None
 

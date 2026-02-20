@@ -68,7 +68,7 @@ class TaskService:
         channel = await channel_service.create_channel(
             name=channel_name,
             description=f"Task channel for {name}",
-            channel_type="shared",
+            channel_type="task",
         )
         task.channel_id = channel.id
 

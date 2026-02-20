@@ -14,7 +14,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from botcrew.models.project import Project, ProjectAgent, ProjectFile
+from botcrew.models.project import Project, ProjectAgent, ProjectFile, ProjectSecret
 from botcrew.schemas.pagination import PaginationMeta, decode_cursor
 from botcrew.services.channel_service import ChannelService
 
@@ -74,7 +74,7 @@ class ProjectService:
         channel = await channel_service.create_channel(
             name=channel_name,
             description=f"Project channel for {name}",
-            channel_type="shared",
+            channel_type="project",
         )
         project.channel_id = channel.id
 
@@ -231,6 +231,11 @@ class ProjectService:
             delete(ProjectFile).where(ProjectFile.project_id == project_id)
         )
 
+        # 1b. Delete ProjectSecret records
+        await self.db.execute(
+            delete(ProjectSecret).where(ProjectSecret.project_id == project_id)
+        )
+
         # 2. Delete ProjectAgent records
         await self.db.execute(
             delete(ProjectAgent).where(ProjectAgent.project_id == project_id)
@@ -383,6 +388,83 @@ class ProjectService:
                 )
             )
 
+        await self.db.commit()
+
+    # ------------------------------------------------------------------
+    # Secret assignment
+    # ------------------------------------------------------------------
+
+    async def assign_secret(
+        self, project_id: str, secret_id: str
+    ) -> ProjectSecret:
+        """Assign a secret to a project.
+
+        Creates a ProjectSecret record. Catches IntegrityError for
+        duplicate assignments.
+
+        Args:
+            project_id: UUID of the project.
+            secret_id: UUID of the secret.
+
+        Returns:
+            The created ProjectSecret record.
+
+        Raises:
+            ValueError: If secret is already assigned to this project.
+        """
+        assignment = ProjectSecret(project_id=project_id, secret_id=secret_id)
+        self.db.add(assignment)
+        try:
+            await self.db.flush()
+        except IntegrityError as exc:
+            await self.db.rollback()
+            raise ValueError("Secret already assigned to this project") from exc
+
+        await self.db.commit()
+        await self.db.refresh(assignment)
+        return assignment
+
+    async def list_project_secrets(
+        self, project_id: str
+    ) -> list[ProjectSecret]:
+        """List all secret assignments for a project.
+
+        Args:
+            project_id: UUID of the project.
+
+        Returns:
+            List of ProjectSecret records ordered by created_at.
+        """
+        result = await self.db.execute(
+            select(ProjectSecret)
+            .where(ProjectSecret.project_id == project_id)
+            .order_by(ProjectSecret.created_at.asc())
+        )
+        return list(result.scalars().all())
+
+    async def remove_secret(
+        self, project_id: str, secret_id: str
+    ) -> None:
+        """Remove a secret from a project.
+
+        Args:
+            project_id: UUID of the project.
+            secret_id: UUID of the secret.
+
+        Raises:
+            ValueError: If the assignment does not exist.
+        """
+        result = await self.db.execute(
+            select(ProjectSecret).where(
+                ProjectSecret.project_id == project_id,
+                ProjectSecret.secret_id == secret_id,
+            )
+        )
+        assignment = result.scalar_one_or_none()
+        if assignment is None:
+            raise ValueError("Secret is not assigned to this project")
+
+        await self.db.delete(assignment)
         await self.db.commit()
 
     # ------------------------------------------------------------------

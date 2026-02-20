@@ -45,6 +45,12 @@ class AssignAgentRequest(BaseModel):
     role_prompt: str | None = None
 
 
+class AssignSecretRequest(BaseModel):
+    """Request body for assigning a secret to a project."""
+
+    secret_id: str
+
+
 class ProjectAssignment(BaseModel):
     """Project assignment info included in agent boot-config.
 

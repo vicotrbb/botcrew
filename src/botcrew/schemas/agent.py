@@ -64,6 +64,31 @@ class AgentDetailAttributes(AgentSummaryAttributes):
     memory: str
 
 
+class TokenUsageTotals(BaseModel):
+    """Response body for agent token usage totals."""
+
+    total_input_tokens: int
+    total_output_tokens: int
+
+
+class RecordTokenUsageRequest(BaseModel):
+    """Request body for recording a single LLM call's token usage."""
+
+    input_tokens: int
+    output_tokens: int
+    model_provider: str
+    model_name: str
+    task_id: str | None = None
+    project_id: str | None = None
+    call_type: str | None = None
+
+
+class RecordTokenBatchRequest(BaseModel):
+    """Request body for recording multiple LLM calls' token usage."""
+
+    records: list[RecordTokenUsageRequest]
+
+
 class MemoryUpdateRequest(BaseModel):
     """Request body for full memory replacement (PUT)."""
 

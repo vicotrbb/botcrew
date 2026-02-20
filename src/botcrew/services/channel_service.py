@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from botcrew.models.channel import Channel, ChannelMember
@@ -317,6 +317,35 @@ class ChannelService:
             select(ChannelMember).where(ChannelMember.channel_id == channel_id)
         )
         return list(result.scalars().all())
+
+    async def delete_channel_cascade(self, channel_id: str) -> None:
+        """Delete a channel with full cascade cleanup.
+
+        Deletion order respects FK constraints:
+        1. ReadCursor records
+        2. ChannelMember records
+        3. Message records
+        4. Channel record
+
+        Args:
+            channel_id: UUID of the channel to delete.
+        """
+        from botcrew.models.message import Message
+        from botcrew.models.read_cursor import ReadCursor
+
+        await self.db.execute(
+            delete(ReadCursor).where(ReadCursor.channel_id == channel_id)
+        )
+        await self.db.execute(
+            delete(ChannelMember).where(ChannelMember.channel_id == channel_id)
+        )
+        await self.db.execute(
+            delete(Message).where(Message.channel_id == channel_id)
+        )
+        await self.db.execute(
+            delete(Channel).where(Channel.id == channel_id)
+        )
+        await self.db.commit()
 
     async def get_channel_agent_ids(self, channel_id: str) -> list[str]:
         """Get agent IDs for all agent members in a channel.
