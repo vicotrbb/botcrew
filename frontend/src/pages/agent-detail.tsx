@@ -19,6 +19,7 @@ import {
   useDeleteAgent,
   useAgentMemory,
   useUpdateAgentMemory,
+  useAgentTokenUsage,
 } from '@/hooks/use-agents';
 import { Form } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
@@ -211,6 +212,50 @@ function MemorySection({ agentId }: { agentId: string }) {
             )}
           </Button>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---- Token Usage Section ----
+
+function formatTokenCount(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 10_000) return `${(count / 1_000).toFixed(1)}K`;
+  return new Intl.NumberFormat().format(count);
+}
+
+function TokenUsageSection({ agentId }: { agentId: string }) {
+  const { data, isLoading } = useAgentTokenUsage(agentId);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Token Usage</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="h-20 bg-muted animate-pulse rounded-lg" />
+            <div className="h-20 bg-muted animate-pulse rounded-lg" />
+          </div>
+        ) : data && (data.total_input_tokens > 0 || data.total_output_tokens > 0) ? (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="text-center p-4 rounded-lg bg-muted/30">
+                <p className="text-2xl font-semibold">{formatTokenCount(data.total_input_tokens)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Input Tokens</p>
+              </div>
+              <div className="text-center p-4 rounded-lg bg-muted/30">
+                <p className="text-2xl font-semibold">{formatTokenCount(data.total_output_tokens)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Output Tokens</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Lifetime cumulative totals across all calls.</p>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">No token usage recorded yet</p>
+        )}
       </CardContent>
     </Card>
   );
@@ -435,6 +480,9 @@ export function AgentDetailPage() {
 
         {/* Section 4: Memory (separate save) */}
         <MemorySection agentId={id!} />
+
+        {/* Section 5: Token Usage */}
+        <TokenUsageSection agentId={id!} />
       </div>
     </div>
   );
