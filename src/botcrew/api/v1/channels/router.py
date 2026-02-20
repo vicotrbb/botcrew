@@ -210,14 +210,27 @@ async def delete_channel(
     channel_id: str,
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Delete a channel."""
+    """Delete a custom channel with full cascade cleanup.
+
+    Only custom channels can be deleted via this endpoint.
+    Project, task, shared, and DM channels are managed by their
+    parent resources and cannot be deleted directly.
+    """
     service = ChannelService(db)
     channel = await service.get_channel(channel_id)
     if channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
 
-    await db.delete(channel)
-    await db.commit()
+    if channel.channel_type != "custom":
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Only custom channels can be deleted. "
+                f"This channel is managed by its parent {channel.channel_type}."
+            ),
+        )
+
+    await service.delete_channel_cascade(channel_id)
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +253,13 @@ async def add_member(
     if channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
 
+    # Guard: managed channels don't allow manual member changes
+    if channel.channel_type in ("project", "task", "dm"):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Cannot manually manage members of {channel.channel_type} channels.",
+        )
+
     try:
         member = await service.add_member(
             channel_id=channel_id,
@@ -261,6 +281,17 @@ async def remove_member(
     """Remove a member from a channel."""
     attrs = body.data.attributes
     service = ChannelService(db)
+
+    # Guard: managed channels don't allow manual member changes
+    channel = await service.get_channel(channel_id)
+    if channel is None:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    if channel.channel_type in ("project", "task", "dm"):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Cannot manually manage members of {channel.channel_type} channels.",
+        )
+
     try:
         await service.remove_member(
             channel_id=channel_id,

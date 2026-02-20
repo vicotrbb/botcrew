@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from botcrew.api.deps import get_db
-from botcrew.models.project import Project, ProjectAgent, ProjectFile
+from botcrew.models.project import Project, ProjectAgent, ProjectFile, ProjectSecret
 from botcrew.schemas.jsonapi import (
     JSONAPIListResponse,
     JSONAPIRequest,
@@ -21,6 +21,7 @@ from botcrew.schemas.jsonapi import (
 from botcrew.schemas.pagination import PaginationLinks, encode_cursor
 from botcrew.schemas.project import (
     AssignAgentRequest,
+    AssignSecretRequest,
     CreateProjectRequest,
     UpdateProjectRequest,
 )
@@ -310,3 +311,72 @@ async def get_project_file(
     return JSONAPISingleResponse(
         data=_file_resource(pf, include_content=True)
     )
+
+
+# ---------------------------------------------------------------------------
+# Secret assignment sub-resource
+# ---------------------------------------------------------------------------
+
+
+def _secret_assignment_to_attrs(ps: ProjectSecret) -> dict:
+    """Map a ProjectSecret model to JSON:API attributes."""
+    return {
+        "project_id": str(ps.project_id),
+        "secret_id": str(ps.secret_id),
+        "created_at": ps.created_at.isoformat(),
+    }
+
+
+def _secret_assignment_resource(ps: ProjectSecret) -> JSONAPIResource:
+    """Build a JSON:API resource object from a ProjectSecret."""
+    return JSONAPIResource(
+        type="project-secrets",
+        id=str(ps.id),
+        attributes=_secret_assignment_to_attrs(ps),
+    )
+
+
+@router.post("/{project_id}/secrets", status_code=201)
+async def assign_secret(
+    project_id: str,
+    body: JSONAPIRequest[AssignSecretRequest],
+    db: AsyncSession = Depends(get_db),
+) -> JSONAPISingleResponse:
+    """Assign a secret to a project."""
+    attrs = body.data.attributes
+    service = ProjectService(db)
+    try:
+        assignment = await service.assign_secret(
+            project_id=project_id,
+            secret_id=attrs.secret_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return JSONAPISingleResponse(data=_secret_assignment_resource(assignment))
+
+
+@router.get("/{project_id}/secrets")
+async def list_project_secrets(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> JSONAPIListResponse:
+    """List all secret assignments for a project."""
+    service = ProjectService(db)
+    assignments = await service.list_project_secrets(project_id)
+    return JSONAPIListResponse(
+        data=[_secret_assignment_resource(a) for a in assignments],
+    )
+
+
+@router.delete("/{project_id}/secrets/{secret_id}", status_code=204)
+async def remove_secret(
+    project_id: str,
+    secret_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Remove a secret from a project."""
+    service = ProjectService(db)
+    try:
+        await service.remove_secret(project_id, secret_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

@@ -18,7 +18,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from botcrew.api.deps import get_db, get_pod_manager
 from botcrew.models.agent import Agent
-from botcrew.schemas.agent import CreateAgentRequest, UpdateAgentRequest
+from botcrew.schemas.agent import (
+    CreateAgentRequest,
+    RecordTokenBatchRequest,
+    RecordTokenUsageRequest,
+    UpdateAgentRequest,
+)
+from botcrew.services.token_service import TokenService
 from botcrew.schemas.jsonapi import (
     JSONAPIListResponse,
     JSONAPIRequest,
@@ -256,6 +262,98 @@ async def duplicate_agent(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return JSONAPISingleResponse(data=_agent_resource(agent, detail=True))
+
+
+# ---------------------------------------------------------------------------
+# Token usage sub-resource
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{agent_id}/token-usage")
+async def get_agent_token_usage(
+    agent_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> JSONAPISingleResponse:
+    """Get aggregate token usage totals for an agent."""
+    token_service = TokenService(db)
+    totals = await token_service.get_agent_token_totals(agent_id)
+    return JSONAPISingleResponse(
+        data=JSONAPIResource(
+            type="token-usage",
+            id=agent_id,
+            attributes=totals,
+        )
+    )
+
+
+@router.post("/{agent_id}/token-usage", status_code=201)
+async def record_agent_token_usage(
+    agent_id: str,
+    body: JSONAPIRequest[RecordTokenUsageRequest],
+    db: AsyncSession = Depends(get_db),
+) -> JSONAPISingleResponse:
+    """Record a single LLM call's token usage for an agent."""
+    attrs = body.data.attributes
+    token_service = TokenService(db)
+    record = await token_service.record_usage(
+        agent_id=agent_id,
+        input_tokens=attrs.input_tokens,
+        output_tokens=attrs.output_tokens,
+        model_provider=attrs.model_provider,
+        model_name=attrs.model_name,
+        task_id=attrs.task_id,
+        project_id=attrs.project_id,
+        call_type=attrs.call_type,
+    )
+    return JSONAPISingleResponse(
+        data=JSONAPIResource(
+            type="token-usage",
+            id=str(record.id),
+            attributes={
+                "agent_id": str(record.agent_id),
+                "input_tokens": record.input_tokens,
+                "output_tokens": record.output_tokens,
+                "model_provider": record.model_provider,
+                "model_name": record.model_name,
+                "task_id": str(record.task_id) if record.task_id else None,
+                "project_id": str(record.project_id) if record.project_id else None,
+                "call_type": record.call_type,
+                "created_at": record.created_at.isoformat(),
+            },
+        )
+    )
+
+
+@router.post("/{agent_id}/token-usage/batch", status_code=201)
+async def record_agent_token_usage_batch(
+    agent_id: str,
+    body: JSONAPIRequest[RecordTokenBatchRequest],
+    db: AsyncSession = Depends(get_db),
+) -> JSONAPISingleResponse:
+    """Record multiple LLM calls' token usage for an agent in bulk."""
+    attrs = body.data.attributes
+    records = [
+        {
+            "agent_id": agent_id,
+            "input_tokens": r.input_tokens,
+            "output_tokens": r.output_tokens,
+            "model_provider": r.model_provider,
+            "model_name": r.model_name,
+            "task_id": r.task_id,
+            "project_id": r.project_id,
+            "call_type": r.call_type,
+        }
+        for r in attrs.records
+    ]
+    token_service = TokenService(db)
+    await token_service.record_batch(records)
+    return JSONAPISingleResponse(
+        data=JSONAPIResource(
+            type="token-usage-batch",
+            id=agent_id,
+            attributes={"recorded": len(records)},
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
