@@ -23,6 +23,7 @@ class Project(Base, UUIDPrimaryKeyMixin, AuditMixin):
     status: Mapped[str] = mapped_column(
         String(20), server_default="active", nullable=False
     )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class ProjectAgent(Base, UUIDPrimaryKeyMixin, AuditMixin):
