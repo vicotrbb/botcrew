@@ -1,4 +1,4 @@
-import { Github, Calendar } from 'lucide-react';
+import { Github, Calendar, KeyRound } from 'lucide-react';
 import type { ProjectSummary } from '@/types/project';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,10 +19,11 @@ function formatDate(iso: string): string {
 interface ProjectCardProps {
   project: ProjectSummary;
   agentCount?: number;
+  hasSecrets?: boolean;
   onClick: () => void;
 }
 
-export function ProjectCard({ project, agentCount, onClick }: ProjectCardProps) {
+export function ProjectCard({ project, agentCount, hasSecrets, onClick }: ProjectCardProps) {
   return (
     <Card
       className="p-4 cursor-pointer transition-all duration-200 hover:border-primary/50 hover:shadow-md"
@@ -54,6 +55,12 @@ export function ProjectCard({ project, agentCount, onClick }: ProjectCardProps) 
           <Badge variant="outline" className="text-xs gap-1">
             <Github className="size-3" />
             GitHub
+          </Badge>
+        )}
+        {hasSecrets && (
+          <Badge variant="outline" className="text-xs gap-1">
+            <KeyRound className="size-3" />
+            Secrets
           </Badge>
         )}
         {agentCount !== undefined && (

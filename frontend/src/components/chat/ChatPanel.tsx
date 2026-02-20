@@ -14,7 +14,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useChannelMembers } from '@/hooks/use-channels';
 import { ChannelSelector } from './ChannelSelector';
+import { ChannelAgentManager } from './ChannelAgentManager';
+import { ChannelSectionHeader } from './ChannelSectionHeader';
 import { CreateChannelDialog } from './CreateChannelDialog';
 import { DeleteChannelDialog } from './DeleteChannelDialog';
 import { MessageList } from './MessageList';
@@ -48,6 +51,19 @@ function useUnreadPolling(channels: Channel[], activeChannelId: string | null) {
     const interval = setInterval(() => void pollUnread(), 15_000);
     return () => clearInterval(interval);
   }, [channels, activeChannelId, setUnreadCount]);
+}
+
+function MembersSection({ channelId, channelType }: { channelId: string; channelType: Channel['channel_type'] }) {
+  const { data: members } = useChannelMembers(channelId);
+  const agentMemberCount = (members ?? []).filter((m) => m.agent_id != null).length;
+
+  return (
+    <div className="border-b border-border">
+      <ChannelSectionHeader title="Members" count={agentMemberCount} defaultOpen={false}>
+        <ChannelAgentManager channelId={channelId} channelType={channelType} />
+      </ChannelSectionHeader>
+    </div>
+  );
 }
 
 export function ChatPanel() {
@@ -215,6 +231,11 @@ export function ChatPanel() {
         dmChannelMap={dmChannelMap}
         onAgentDmSelect={handleAgentDmSelect}
       />
+
+      {/* Collapsible Members section */}
+      {activeChannel && activeChannel.channel_type !== 'dm' && (
+        <MembersSection channelId={activeChannel.id} channelType={activeChannel.channel_type} />
+      )}
 
       {/* Message list */}
       {activeChannelId ? (

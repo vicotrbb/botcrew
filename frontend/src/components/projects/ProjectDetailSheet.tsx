@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ProjectForm } from './ProjectForm';
 import { AgentAssignment } from './AgentAssignment';
+import { SecretAssignment } from './SecretAssignment';
 
 interface ProjectDetailSheetProps {
   projectId: string | null;
@@ -111,6 +112,11 @@ export function ProjectDetailSheet({
 
             {/* Agent assignment */}
             <AgentAssignment projectId={projectId!} />
+
+            <Separator />
+
+            {/* Secret assignment */}
+            <SecretAssignment projectId={projectId!} />
 
             <Separator />
 
