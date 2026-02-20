@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 _MAX_IMMEDIATE_RETRIES = 5
 _BACKOFF_BASE_SECONDS = 10
 _BACKOFF_MAX_SECONDS = 600
+_PENDING_TIMEOUT_SECONDS = 180  # 3 minutes before treating Pending as error
 
 
 class ReconciliationLoop:
@@ -127,8 +128,9 @@ class ReconciliationLoop:
                 )
 
             elif agent.status == "running" and pod_name in actual_pod_names:
-                # Pod exists -- check if it has failed
-                if pod_phases.get(pod_name) == "Failed":
+                phase = pod_phases.get(pod_name)
+                if phase == "Failed":
+                    # Pod failed -- delete and mark as error for recovery
                     await self._set_agent_status(agent_id, "error")
                     await self.pod_manager.delete_agent_pod(pod_name)
                     logger.warning(
@@ -136,6 +138,26 @@ class ReconciliationLoop:
                         pod_name,
                         agent_id,
                     )
+                elif phase == "Pending":
+                    # Pod stuck in Pending (likely insufficient resources).
+                    # Track how long it's been pending; after threshold, delete
+                    # and mark as error so recovery can retry with fresh spec.
+                    pending_key = f"pending:{agent_id}"
+                    first_seen = self._last_attempt.get(pending_key, 0.0)
+                    now = time.monotonic()
+                    if first_seen == 0.0:
+                        self._last_attempt[pending_key] = now
+                    elif now - first_seen > _PENDING_TIMEOUT_SECONDS:
+                        await self._set_agent_status(agent_id, "error")
+                        await self.pod_manager.delete_agent_pod(pod_name)
+                        self._last_attempt.pop(pending_key, None)
+                        logger.warning(
+                            "Pod '%s' stuck Pending for >%ds for agent '%s' "
+                            "-- deleted and marked as error",
+                            pod_name,
+                            _PENDING_TIMEOUT_SECONDS,
+                            agent_id,
+                        )
 
             elif agent.status in ("error", "recovering") and pod_name not in actual_pod_names:
                 # Error/recovering agent with no pod -- attempt recovery

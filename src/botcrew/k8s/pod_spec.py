@@ -93,7 +93,7 @@ def build_agent_pod_spec(agent: Any, namespace: str) -> V1Pod:
             failure_threshold=3,
         ),
         resources=V1ResourceRequirements(
-            requests={"memory": "256Mi", "cpu": "200m"},
+            requests={"memory": "128Mi", "cpu": "50m"},
             limits={"memory": "1Gi", "cpu": "1000m"},
         ),
     )
@@ -119,7 +119,7 @@ def build_agent_pod_spec(agent: Any, namespace: str) -> V1Pod:
             failure_threshold=3,
         ),
         resources=V1ResourceRequirements(
-            requests={"memory": "128Mi", "cpu": "100m"},
+            requests={"memory": "64Mi", "cpu": "25m"},
             limits={"memory": "512Mi", "cpu": "500m"},
         ),
     )
