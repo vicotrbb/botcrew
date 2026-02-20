@@ -126,6 +126,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     """Create and configure the agent FastAPI application."""
     from agent.api.config_update import router as config_update_router
+    from agent.api.evaluate import router as evaluate_router
     from agent.api.spawn import router as spawn_router
 
     app = FastAPI(
@@ -141,6 +142,7 @@ def create_app() -> FastAPI:
     app.include_router(wake_router)
     app.include_router(message_router)
     app.include_router(spawn_router)
+    app.include_router(evaluate_router)
     app.include_router(config_update_router)
 
     return app
