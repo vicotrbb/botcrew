@@ -42,6 +42,74 @@ from agent.tools.task_tools import TaskTools
 
 logger = logging.getLogger(__name__)
 
+COLLABORATION_INSTRUCTIONS = """
+
+## Multi-Agent Collaboration
+
+When you are assigned to a project with other agents, you work as a team.
+The coordination doc at `/workspace/projects/{project_id}/.botcrew/coordination.md`
+is the single source of truth for project collaboration state.
+
+### Discovery
+- During heartbeat, check each assigned project for a coordination doc:
+  `/workspace/projects/{project_id}/.botcrew/coordination.md`
+- If NO coordination doc exists, you are the first agent. Create it using the template below,
+  draft an initial plan based on the project goals, and announce yourself in the project channel.
+- If a coordination doc exists, read it to understand current state. If you are not listed in the
+  Team section, add yourself and announce in the project channel. Then claim available work.
+
+### Working Together
+- Claim available work items by editing the coordination doc (assign your name to unclaimed items).
+- Before claiming work, re-read the coordination doc to check if another agent took it.
+- Use self_invoke to spawn focused sub-calls for actual implementation work.
+  Include the FULL absolute path in the instruction:
+  `/workspace/projects/{project_id}/.botcrew/coordination.md`
+- Update the coordination doc immediately when you complete a work item (mark checkbox, add note).
+- Share significant progress, questions, and decisions in the project channel.
+
+### Communication Discipline
+- Only send a message when it adds NEW information or moves the project forward.
+- Do NOT reply just to acknowledge. "Got it" or "Sounds good" wastes attention.
+- Do NOT repeat information another agent has already shared.
+- Before replying, ask: "Does this response contain new information?" If not, do not send it.
+- After processing messages from a channel, mark them as read so you do not re-process them.
+
+### Completion
+- When all work items in the coordination doc are complete, announce a completion summary
+  in the project channel.
+- Use update_project_status to mark the project as 'complete' and add a summary note.
+
+### Coordination Doc Template
+When creating a new coordination doc, use this format:
+
+```
+# Project Coordination: {project_name}
+
+## Status
+Current phase: planning
+Last updated: {ISO_TIMESTAMP} by {your_name}
+
+## Team
+| Agent | Role | Status | Joined |
+|-------|------|--------|--------|
+| {your_name} | Lead (first to join) | available | {ISO_TIMESTAMP} |
+
+## Plan
+> Status: Draft -- awaiting team review
+
+{Your initial plan based on project goals}
+
+## Work Items
+No work items yet -- pending plan approval.
+
+## Decisions
+No decisions yet.
+
+## Progress Log
+- {ISO_TIMESTAMP} [{your_name}]: Created coordination doc and drafted initial plan.
+```
+"""
+
 
 class AgentRuntime:
     """Core runtime wrapping an Agno Agent with all twelve toolkits.
@@ -169,6 +237,12 @@ class AgentRuntime:
                 instructions += tasks_section
             else:
                 instructions = tasks_section.strip()
+
+        # Inject collaboration instructions (always present -- active when agent has multi-agent projects)
+        if instructions:
+            instructions += COLLABORATION_INSTRUCTIONS
+        else:
+            instructions = COLLABORATION_INSTRUCTIONS.strip()
 
         # Create toolkits
         self._self_tools = SelfTools(
@@ -323,6 +397,12 @@ class AgentRuntime:
                 self._agent.instructions += tasks_section
             else:
                 self._agent.instructions = tasks_section.strip()
+
+        # Re-inject collaboration instructions after identity/personality rebuild
+        if self._agent.instructions:
+            self._agent.instructions += COLLABORATION_INSTRUCTIONS
+        else:
+            self._agent.instructions = COLLABORATION_INSTRUCTIONS.strip()
 
     async def process_message(
         self,
