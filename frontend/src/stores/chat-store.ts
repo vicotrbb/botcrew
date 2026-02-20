@@ -4,6 +4,7 @@ interface ChatState {
   isOpen: boolean;
   activeChannelId: string | null;
   unreadCounts: Record<string, number>;
+  panelWidth: number;
 }
 
 interface ChatActions {
@@ -14,12 +15,14 @@ interface ChatActions {
   incrementUnread: (channelId: string) => void;
   clearUnread: (channelId: string) => void;
   setUnreadCount: (channelId: string, count: number) => void;
+  setPanelWidth: (width: number) => void;
 }
 
 export const useChatStore = create<ChatState & ChatActions>((set) => ({
   isOpen: true,
   activeChannelId: null,
   unreadCounts: {},
+  panelWidth: 380,
 
   toggle: () => set((state) => ({ isOpen: !state.isOpen })),
   open: () => set({ isOpen: true }),
@@ -50,4 +53,7 @@ export const useChatStore = create<ChatState & ChatActions>((set) => ({
         [channelId]: count,
       },
     })),
+
+  setPanelWidth: (width) =>
+    set({ panelWidth: Math.min(Math.max(width, 300), 700) }),
 }));
