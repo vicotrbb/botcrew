@@ -6,6 +6,8 @@ import type {
   UpdateProjectInput,
   ProjectAgent,
   AssignAgentInput,
+  ProjectSecret,
+  AssignSecretInput,
 } from '@/types/project';
 import {
   getProjects,
@@ -17,6 +19,9 @@ import {
   assignAgent,
   removeAgent,
   syncProject,
+  getProjectSecrets,
+  assignSecret as assignSecretApi,
+  removeProjectSecret,
 } from '@/api/projects';
 
 export function useProjects() {
@@ -98,5 +103,33 @@ export function useRemoveAgent(projectId: string) {
 export function useSyncProject() {
   return useMutation({
     mutationFn: (projectId: string) => syncProject(projectId),
+  });
+}
+
+export function useProjectSecrets(projectId: string | null | undefined) {
+  return useQuery<ProjectSecret[]>({
+    queryKey: ['projects', projectId, 'secrets'],
+    queryFn: () => getProjectSecrets(projectId!),
+    enabled: !!projectId,
+  });
+}
+
+export function useAssignSecret(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AssignSecretInput) => assignSecretApi(projectId, input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['projects', projectId, 'secrets'] });
+    },
+  });
+}
+
+export function useRemoveSecret(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (secretId: string) => removeProjectSecret(projectId, secretId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['projects', projectId, 'secrets'] });
+    },
   });
 }

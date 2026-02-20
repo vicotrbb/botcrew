@@ -1,4 +1,4 @@
-import type { AgentSummary, AgentDetail, CreateAgentInput, UpdateAgentInput } from '@/types/agent';
+import type { AgentSummary, AgentDetail, CreateAgentInput, UpdateAgentInput, TokenUsageTotals } from '@/types/agent';
 import { fetchOne, fetchList, postJSON, patchJSON, deleteJSON, putJSON } from '@/api/client';
 
 export async function getAgents(statusFilter?: string): Promise<AgentSummary[]> {
@@ -42,4 +42,8 @@ export async function patchAgentMemory(
   patch: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   return patchJSON<Record<string, unknown>>(`/agents/${id}/memory`, patch, 'agent-memory');
+}
+
+export async function getAgentTokenUsage(id: string): Promise<TokenUsageTotals> {
+  return fetchOne<TokenUsageTotals>(`/agents/${id}/token-usage`);
 }

@@ -40,3 +40,14 @@ export interface AssignAgentInput {
   agent_id: string;
   role_prompt?: string;
 }
+
+export interface ProjectSecret {
+  id: string;
+  project_id: string;
+  secret_id: string;
+  created_at: string;
+}
+
+export interface AssignSecretInput {
+  secret_id: string;
+}

@@ -48,3 +48,8 @@ export interface UpdateAgentInput {
   model_provider?: ModelProvider;
   model_name?: string;
 }
+
+export interface TokenUsageTotals {
+  total_input_tokens: number;
+  total_output_tokens: number;
+}

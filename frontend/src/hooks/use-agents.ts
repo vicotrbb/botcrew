@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { AgentSummary, AgentDetail, CreateAgentInput, UpdateAgentInput } from '@/types/agent';
+import type { AgentSummary, AgentDetail, CreateAgentInput, UpdateAgentInput, TokenUsageTotals } from '@/types/agent';
 import {
   getAgents,
   getAgent,
@@ -9,6 +9,7 @@ import {
   duplicateAgent,
   getAgentMemory,
   updateAgentMemory,
+  getAgentTokenUsage,
 } from '@/api/agents';
 import { AGENT_POLL_INTERVAL } from '@/lib/constants';
 
@@ -84,5 +85,13 @@ export function useUpdateAgentMemory(agentId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['agents', agentId, 'memory'] });
     },
+  });
+}
+
+export function useAgentTokenUsage(agentId: string | null | undefined) {
+  return useQuery<TokenUsageTotals>({
+    queryKey: ['agents', agentId, 'token-usage'],
+    queryFn: () => getAgentTokenUsage(agentId!),
+    enabled: !!agentId,
   });
 }

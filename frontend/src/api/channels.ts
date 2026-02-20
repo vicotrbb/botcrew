@@ -1,4 +1,4 @@
-import type { Channel, CreateChannelInput } from '@/types/channel';
+import type { Channel, CreateChannelInput, ChannelMember } from '@/types/channel';
 import { fetchOne, fetchList, postJSON, patchJSON, deleteJSON, deleteJSONWithBody } from '@/api/client';
 
 export async function getChannels(): Promise<Channel[]> {
@@ -45,4 +45,8 @@ export async function removeChannelMember(
   agentId: string,
 ): Promise<void> {
   return deleteJSONWithBody(`/channels/${channelId}/members`, { agent_id: agentId }, 'channel-members');
+}
+
+export async function getChannelMembers(channelId: string): Promise<(ChannelMember & { id: string })[]> {
+  return fetchList<ChannelMember>(`/channels/${channelId}/members`);
 }

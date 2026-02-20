@@ -5,6 +5,8 @@ import type {
   UpdateProjectInput,
   ProjectAgent,
   AssignAgentInput,
+  ProjectSecret,
+  AssignSecretInput,
 } from '@/types/project';
 import { fetchOne, fetchList, postJSON, patchJSON, deleteJSON } from '@/api/client';
 
@@ -42,4 +44,16 @@ export async function removeAgent(projectId: string, agentId: string): Promise<v
 
 export async function syncProject(projectId: string): Promise<ProjectDetail> {
   return postJSON<Omit<ProjectDetail, 'id'>>(`/projects/${projectId}/sync`, {});
+}
+
+export async function getProjectSecrets(projectId: string): Promise<ProjectSecret[]> {
+  return fetchList<Omit<ProjectSecret, 'id'>>(`/projects/${projectId}/secrets`);
+}
+
+export async function assignSecret(projectId: string, input: AssignSecretInput): Promise<ProjectSecret> {
+  return postJSON<Omit<ProjectSecret, 'id'>>(`/projects/${projectId}/secrets`, input, 'project-secrets');
+}
+
+export async function removeProjectSecret(projectId: string, secretId: string): Promise<void> {
+  return deleteJSON(`/projects/${projectId}/secrets/${secretId}`);
 }

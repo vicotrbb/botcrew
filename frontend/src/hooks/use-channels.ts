@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Channel, CreateChannelInput } from '@/types/channel';
+import type { Channel, CreateChannelInput, ChannelMember } from '@/types/channel';
 import {
   getChannels,
   getChannel,
@@ -8,6 +8,7 @@ import {
   getDmChannel,
   addChannelMember,
   removeChannelMember,
+  getChannelMembers,
 } from '@/api/channels';
 
 export function useChannels() {
@@ -42,6 +43,14 @@ export function useDeleteChannel() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['channels'] });
     },
+  });
+}
+
+export function useChannelMembers(channelId: string | null | undefined) {
+  return useQuery<(ChannelMember & { id: string })[]>({
+    queryKey: ['channels', channelId, 'members'],
+    queryFn: () => getChannelMembers(channelId!),
+    enabled: !!channelId,
   });
 }
 
