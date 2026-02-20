@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { X } from 'lucide-react';
 import { useWebSocket } from '@/hooks/use-websocket';
-import { useChannels } from '@/hooks/use-channels';
+import { useChannels, useGetDmChannel } from '@/hooks/use-channels';
+import { useAgents } from '@/hooks/use-agents';
 import { useChatStore } from '@/stores/chat-store';
 import { getUnreadCount } from '@/api/messages';
 import type { Channel } from '@/types/channel';
@@ -45,6 +46,8 @@ export function ChatPanel() {
   const { activeChannelId, setActiveChannel, clearUnread, unreadCounts, toggle } =
     useChatStore();
   const channels = useChannels();
+  const agentsQuery = useAgents();
+  const getDmChannel = useGetDmChannel();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   // Auto-select first shared channel on mount
@@ -64,10 +67,41 @@ export function ChatPanel() {
   const { status: wsStatus, sendMessage: wsSendMessage } =
     useWebSocket(activeChannelId);
 
+  // Build agent_id -> dm_channel_id map from existing DM channels
+  const dmChannelMap = useMemo(() => {
+    if (!channels.data) return {};
+    const map: Record<string, string> = {};
+    for (const ch of channels.data) {
+      if (ch.channel_type === 'dm' && ch.description) {
+        // DM channel description stores the agent_id (set by backend)
+        map[ch.description] = ch.id;
+      }
+    }
+    return map;
+  }, [channels.data]);
+
   function handleChannelSelect(channelId: string) {
     clearUnread(channelId);
     setActiveChannel(channelId);
     // WebSocket automatically reconnects via useWebSocket(channelId) dependency
+  }
+
+  async function handleAgentDmSelect(agentId: string) {
+    // Check if DM channel already exists
+    const existingChannelId = dmChannelMap[agentId];
+    if (existingChannelId) {
+      clearUnread(existingChannelId);
+      setActiveChannel(existingChannelId);
+      return;
+    }
+
+    // Create DM channel lazily via backend
+    try {
+      const channel = await getDmChannel.mutateAsync(agentId);
+      setActiveChannel(channel.id);
+    } catch {
+      // DM channel creation failed silently
+    }
   }
 
   // No channels available
@@ -106,6 +140,9 @@ export function ChatPanel() {
           onChannelSelect={handleChannelSelect}
           onCreateChannel={() => setShowCreateDialog(true)}
           unreadCounts={unreadCounts}
+          agents={agentsQuery.data ?? []}
+          dmChannelMap={dmChannelMap}
+          onAgentDmSelect={handleAgentDmSelect}
         />
         <Button variant="ghost" size="icon-xs" onClick={toggle} aria-label="Close chat">
           <X className="size-4" />
