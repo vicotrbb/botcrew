@@ -119,6 +119,7 @@ class AgentRuntime:
     2. ``initialize()`` creates the Agno Agent with all toolkits
     3. ``set_heartbeat()`` links the HeartbeatTimer after both objects exist
     4. ``process_message()`` runs user/heartbeat input through the agent
+    4b. ``evaluate_message()`` runs instant reply evaluation in isolated session
     5. ``spawn_sub_instance()`` creates isolated sub-agents for parallel work
     """
 
@@ -436,6 +437,40 @@ class AgentRuntime:
             return (
                 "I encountered an error processing your message. " "Please try again."
             )
+
+    async def evaluate_message(
+        self,
+        message: str,
+        session_id: str,
+    ) -> str:
+        """Evaluate a message using an isolated session (no history pollution).
+
+        Unlike process_message() which uses the agent's persistent session
+        and adds to conversation history, this method uses a unique session_id
+        for each evaluation. This keeps the agent's main conversation history
+        clean of evaluation prompts.
+
+        Used by the /evaluate endpoint for instant reply relevance decisions.
+
+        Args:
+            message: The evaluation prompt (includes message + context + instructions).
+            session_id: Unique session identifier for isolation (e.g., 'evaluate-{msg_id}').
+
+        Returns:
+            The agent's response text.
+        """
+        if self._agent is None:
+            return "[NO_RESPONSE]"
+
+        try:
+            response = await self._agent.arun(
+                message,
+                session_id=session_id,
+            )
+            return response.content
+        except Exception as exc:
+            logger.error("Error in evaluate_message: %s", exc, exc_info=True)
+            return "[NO_RESPONSE]"
 
     # ------------------------------------------------------------------
     # Sub-instance spawning
