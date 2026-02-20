@@ -192,6 +192,13 @@ class TaskService:
             delete(TaskSkill).where(TaskSkill.task_id == task_id)
         )
 
+        # 3b. Delete token_usage records referencing this task
+        from botcrew.models.token_usage import TokenUsage
+
+        await self.db.execute(
+            delete(TokenUsage).where(TokenUsage.task_id == task_id)
+        )
+
         # 4. Channel cleanup -- clear FK on task first, then delete channel
         if task.channel_id:
             from botcrew.models.channel import Channel, ChannelMember

@@ -9,12 +9,19 @@ from __future__ import annotations
 import json
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from botcrew.models.activity import Activity
 from botcrew.models.agent import Agent
+from botcrew.models.channel import ChannelMember
 from botcrew.models.integration import Integration
+from botcrew.models.message import Message
+from botcrew.models.project import ProjectAgent
+from botcrew.models.read_cursor import ReadCursor
 from botcrew.models.secret import Secret
+from botcrew.models.task import TaskAgent
+from botcrew.models.token_usage import TokenUsage
 from botcrew.schemas.pagination import PaginationMeta, decode_cursor
 from botcrew.services.model_provider import PROVIDER_REGISTRY, validate_provider_configured
 from botcrew.services.pod_manager import PodManager
@@ -357,7 +364,8 @@ class AgentService:
         """Delete an agent and its Kubernetes pod.
 
         CRITICAL ordering: sets status to 'terminating' first (so
-        reconciliation skips it), deletes the pod, then removes the
+        reconciliation skips it), deletes the pod, cleans up all
+        referencing junction/association rows, then removes the
         DB record. Pod is always deleted BEFORE the DB record to
         prevent orphaned pods.
 
@@ -385,6 +393,38 @@ class AgentService:
                     agent.pod_name,
                     agent_id,
                 )
+
+        # Clean up all FK references before deleting the agent record.
+        # Junction tables (hard delete):
+        await self.db.execute(
+            delete(ChannelMember).where(ChannelMember.agent_id == agent_id)
+        )
+        await self.db.execute(
+            delete(ProjectAgent).where(ProjectAgent.agent_id == agent_id)
+        )
+        await self.db.execute(
+            delete(TaskAgent).where(TaskAgent.agent_id == agent_id)
+        )
+        await self.db.execute(
+            delete(ReadCursor).where(ReadCursor.agent_id == agent_id)
+        )
+        await self.db.execute(
+            delete(TokenUsage).where(TokenUsage.agent_id == agent_id)
+        )
+        await self.db.execute(
+            delete(Activity).where(Activity.agent_id == agent_id)
+        )
+        # Nullable FK columns (set to NULL to preserve the record):
+        await self.db.execute(
+            Message.__table__.update()
+            .where(Message.sender_agent_id == agent_id)
+            .values(sender_agent_id=None)
+        )
+        await self.db.execute(
+            Integration.__table__.update()
+            .where(Integration.agent_id == agent_id)
+            .values(agent_id=None)
+        )
 
         # Then delete DB record
         await self.db.delete(agent)

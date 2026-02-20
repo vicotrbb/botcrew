@@ -241,13 +241,24 @@ class ProjectService:
             delete(ProjectAgent).where(ProjectAgent.project_id == project_id)
         )
 
-        # 3. Channel cleanup
+        # 2b. Delete token_usage records referencing this project
+        from botcrew.models.token_usage import TokenUsage
+
+        await self.db.execute(
+            delete(TokenUsage).where(TokenUsage.project_id == project_id)
+        )
+
+        # 3. Channel cleanup -- null out FK before deleting channel
         if project.channel_id:
-            from botcrew.models.channel import ChannelMember
+            from botcrew.models.channel import Channel, ChannelMember
             from botcrew.models.message import Message
             from botcrew.models.read_cursor import ReadCursor
 
             channel_id = project.channel_id
+
+            # Break the FK reference so the channel can be deleted
+            project.channel_id = None
+            await self.db.flush()
 
             await self.db.execute(
                 delete(ReadCursor).where(ReadCursor.channel_id == channel_id)
@@ -260,9 +271,6 @@ class ProjectService:
             await self.db.execute(
                 delete(Message).where(Message.channel_id == channel_id)
             )
-
-            from botcrew.models.channel import Channel
-
             await self.db.execute(
                 delete(Channel).where(Channel.id == channel_id)
             )
