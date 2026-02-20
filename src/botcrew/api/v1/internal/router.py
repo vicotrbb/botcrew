@@ -405,6 +405,7 @@ async def list_agent_projects(
             "project_name": proj.name,
             "goals": proj.goals,
             "specs": proj.specs,
+            "notes": proj.notes,
             "role_prompt": pa.role_prompt,
             "workspace_path": f"/workspace/projects/{pa.project_id}",
             "channel_id": str(proj.channel_id) if proj.channel_id else None,
@@ -435,15 +436,29 @@ async def get_agent_project(
     if row is None:
         raise HTTPException(status_code=404, detail="Project assignment not found")
     pa, proj = row
+
+    # Fetch all agents assigned to this project
+    agents_result = await db.execute(
+        select(ProjectAgent, Agent)
+        .join(Agent, ProjectAgent.agent_id == Agent.id)
+        .where(ProjectAgent.project_id == project_id)
+    )
+    agents = [
+        {"agent_id": str(a.id), "name": a.name}
+        for _pa2, a in agents_result.all()
+    ]
+
     return {
         "data": {
             "project_id": str(pa.project_id),
             "project_name": proj.name,
             "goals": proj.goals,
             "specs": proj.specs,
+            "notes": proj.notes,
             "role_prompt": pa.role_prompt,
             "workspace_path": f"/workspace/projects/{pa.project_id}",
             "channel_id": str(proj.channel_id) if proj.channel_id else None,
+            "agents": agents,
         }
     }
 
@@ -519,6 +534,70 @@ async def backup_project_files(
         return {"data": {"files_backed_up": 0, "project_id": project_id}}
 
     return {"data": {"files_backed_up": count, "project_id": project_id}}
+
+
+@router.patch("/agents/{agent_id}/projects/{project_id}")
+async def update_agent_project(
+    agent_id: str,
+    project_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update project status and/or append a note as an agent.
+
+    Accepts plain JSON body with optional ``status`` and/or ``note`` fields.
+    Verifies the agent is assigned before allowing updates. Notes are
+    appended with timestamp attribution using the agent's display name.
+    """
+    # Verify agent is assigned to this project
+    assignment = await db.execute(
+        select(ProjectAgent).where(
+            ProjectAgent.agent_id == agent_id,
+            ProjectAgent.project_id == project_id,
+        )
+    )
+    if assignment.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=403, detail="Agent is not assigned to this project"
+        )
+
+    project = await db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Update status if provided
+    if "status" in body:
+        allowed = {"active", "complete", "paused"}
+        if body["status"] not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status. Allowed: {', '.join(sorted(allowed))}",
+            )
+        project.status = body["status"]
+
+    # Append note if provided
+    if "note" in body:
+        agent = await db.get(Agent, agent_id)
+        agent_name = agent.name if agent else agent_id
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        entry = f"--- {timestamp} [{agent_name}] ---\n{body['note']}"
+
+        if project.notes:
+            project.notes = f"{project.notes}\n\n{entry}"
+        else:
+            project.notes = entry
+
+    await db.commit()
+    await db.refresh(project)
+
+    return {
+        "data": {
+            "project_id": project_id,
+            "status": project.status,
+            "updated": True,
+        }
+    }
 
 
 # ---------------------------------------------------------------------------
