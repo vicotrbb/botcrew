@@ -1,17 +1,9 @@
-import { Check, ChevronDown, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { Channel } from '@/types/channel';
 import type { AgentSummary } from '@/types/agent';
-import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AgentAvatar } from '@/components/shared/AgentAvatar';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { ChannelSectionHeader } from './ChannelSectionHeader';
+import { ChannelItem } from './ChannelItem';
 
 interface ChannelSelectorProps {
   channels: Channel[];
@@ -24,6 +16,46 @@ interface ChannelSelectorProps {
   onAgentDmSelect: (agentId: string) => void;
 }
 
+/** Split channels into sidebar sections by channel_type. */
+function categorizeChannels(channels: Channel[]) {
+  const sections = {
+    project: [] as Channel[],
+    task: [] as Channel[],
+    custom: [] as Channel[],
+    dm: [] as Channel[],
+  };
+
+  for (const ch of channels) {
+    switch (ch.channel_type) {
+      case 'project':
+        sections.project.push(ch);
+        break;
+      case 'task':
+        sections.task.push(ch);
+        break;
+      case 'custom':
+        sections.custom.push(ch);
+        break;
+      case 'dm':
+        sections.dm.push(ch);
+        break;
+      default:
+        // 'shared' falls into custom as a fallback
+        sections.custom.push(ch);
+    }
+  }
+
+  // Sort each section by most recent activity (updated_at desc)
+  for (const key of Object.keys(sections) as (keyof typeof sections)[]) {
+    sections[key].sort(
+      (a, b) =>
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+    );
+  }
+
+  return sections;
+}
+
 export function ChannelSelector({
   channels,
   activeChannelId,
@@ -34,101 +66,104 @@ export function ChannelSelector({
   dmChannelMap,
   onAgentDmSelect,
 }: ChannelSelectorProps) {
-  const activeChannel = channels.find((ch) => ch.id === activeChannelId);
-  const nonDmChannels = channels.filter((ch) => ch.channel_type !== 'dm');
-
-  // For DM channels, find the agent name from the agents list
-  let triggerLabel = activeChannel?.name ?? 'Select Channel';
-  if (activeChannel?.channel_type === 'dm' && activeChannel.description) {
-    const dmAgent = agents.find((a) => a.id === activeChannel.description);
-    if (dmAgent) triggerLabel = `DM: ${dmAgent.name}`;
-  }
+  const sections = categorizeChannels(channels);
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-1 max-w-[200px]">
-          <span className="truncate text-sm font-medium">{triggerLabel}</span>
-          <ChevronDown className="size-3.5 shrink-0 opacity-50" />
-        </Button>
-      </DropdownMenuTrigger>
+    <div className="flex flex-col overflow-y-auto border-b border-border max-h-[40vh]">
+      {/* Projects */}
+      <ChannelSectionHeader
+        title="Projects"
+        count={sections.project.length}
+        defaultOpen
+      >
+        {sections.project.map((ch) => (
+          <ChannelItem
+            key={ch.id}
+            channel={ch}
+            isActive={ch.id === activeChannelId}
+            unreadCount={unreadCounts[ch.id] ?? 0}
+            onClick={() => onChannelSelect(ch.id)}
+          />
+        ))}
+      </ChannelSectionHeader>
 
-      <DropdownMenuContent align="start" className="w-64">
-        {nonDmChannels.map((channel) => {
-          const isActive = channel.id === activeChannelId;
-          const unread = unreadCounts[channel.id] ?? 0;
+      {/* Tasks */}
+      <ChannelSectionHeader
+        title="Tasks"
+        count={sections.task.length}
+        defaultOpen
+      >
+        {sections.task.map((ch) => (
+          <ChannelItem
+            key={ch.id}
+            channel={ch}
+            isActive={ch.id === activeChannelId}
+            unreadCount={unreadCounts[ch.id] ?? 0}
+            onClick={() => onChannelSelect(ch.id)}
+          />
+        ))}
+      </ChannelSectionHeader>
+
+      {/* Custom */}
+      <ChannelSectionHeader
+        title="Custom"
+        count={sections.custom.length}
+        defaultOpen
+        rightAction={
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={onCreateChannel}
+            aria-label="Create channel"
+          >
+            <Plus className="size-3.5" />
+          </Button>
+        }
+      >
+        {sections.custom.map((ch) => (
+          <ChannelItem
+            key={ch.id}
+            channel={ch}
+            isActive={ch.id === activeChannelId}
+            unreadCount={unreadCounts[ch.id] ?? 0}
+            onClick={() => onChannelSelect(ch.id)}
+          />
+        ))}
+      </ChannelSectionHeader>
+
+      {/* DMs */}
+      <ChannelSectionHeader
+        title="DMs"
+        count={agents.length}
+        defaultOpen
+      >
+        {agents.map((agent) => {
+          const dmChannelId = dmChannelMap[agent.id];
+          const isActive = dmChannelId === activeChannelId;
+
+          // Synthetic channel-like object for display
+          const syntheticChannel: Channel = {
+            id: dmChannelId ?? `dm-pending-${agent.id}`,
+            name: agent.name,
+            description: agent.id,
+            channel_type: 'dm',
+            creator_user_identifier: null,
+            created_at: '',
+            updated_at: '',
+          };
 
           return (
-            <DropdownMenuItem
-              key={channel.id}
-              className={cn('flex items-center gap-2', isActive && 'bg-accent')}
-              onSelect={() => onChannelSelect(channel.id)}
-            >
-              {/* Check icon for active channel */}
-              <span className="w-4 shrink-0">
-                {isActive && <Check className="size-4" />}
-              </span>
-
-              {/* Channel name */}
-              <span
-                className={cn(
-                  'flex-1 truncate text-sm',
-                  unread > 0 && 'font-bold',
-                )}
-              >
-                {channel.name}
-              </span>
-
-              {/* Channel type label */}
-              <span className="text-[10px] text-muted-foreground shrink-0">
-                {channel.channel_type}
-              </span>
-
-              {/* Unread count badge */}
-              {unread > 0 && (
-                <Badge variant="secondary" className="h-5 min-w-5 px-1 text-[10px]">
-                  {unread}
-                </Badge>
-              )}
-            </DropdownMenuItem>
+            <ChannelItem
+              key={`dm-${agent.id}`}
+              channel={syntheticChannel}
+              isActive={isActive}
+              unreadCount={dmChannelId ? (unreadCounts[dmChannelId] ?? 0) : 0}
+              onClick={() => onAgentDmSelect(agent.id)}
+              agentName={agent.name}
+            />
           );
         })}
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuItem onSelect={onCreateChannel}>
-          <Plus className="size-4" />
-          <span className="text-sm">New Channel</span>
-        </DropdownMenuItem>
-
-        {agents.length > 0 && (
-          <>
-            <DropdownMenuSeparator />
-            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Direct Messages
-            </div>
-            {agents.map((agent) => {
-              const dmChannelId = dmChannelMap[agent.id];
-              const isActive = dmChannelId === activeChannelId;
-
-              return (
-                <DropdownMenuItem
-                  key={`dm-${agent.id}`}
-                  className={cn('flex items-center gap-2', isActive && 'bg-accent')}
-                  onSelect={() => onAgentDmSelect(agent.id)}
-                >
-                  <span className="w-4 shrink-0">
-                    {isActive && <Check className="size-4" />}
-                  </span>
-                  <AgentAvatar name={agent.name} size={20} />
-                  <span className="flex-1 truncate text-sm">{agent.name}</span>
-                  <span className="text-[10px] text-muted-foreground shrink-0">dm</span>
-                </DropdownMenuItem>
-              );
-            })}
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </ChannelSectionHeader>
+    </div>
   );
 }
