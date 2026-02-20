@@ -11,6 +11,7 @@ import { SecretsPage } from './pages/secrets';
 import { SkillsPage } from './pages/skills';
 import { TasksPage } from './pages/tasks';
 import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,23 +25,25 @@ const queryClient = new QueryClient({
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<MainLayout />}>
-            <Route index element={<Navigate to="/agents" replace />} />
-            <Route path="agents" element={<DashboardPage />} />
-            <Route path="agents/new" element={<AgentCreatePage />} />
-            <Route path="agents/:id" element={<AgentDetailPage />} />
-            <Route path="projects" element={<ProjectsPage />} />
-            <Route path="tasks" element={<TasksPage />} />
-            <Route path="skills" element={<SkillsPage />} />
-            <Route path="secrets" element={<SecretsPage />} />
-            <Route path="integrations" element={<IntegrationsPage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-      <Toaster />
+      <TooltipProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route element={<MainLayout />}>
+              <Route index element={<Navigate to="/agents" replace />} />
+              <Route path="agents" element={<DashboardPage />} />
+              <Route path="agents/new" element={<AgentCreatePage />} />
+              <Route path="agents/:id" element={<AgentDetailPage />} />
+              <Route path="projects" element={<ProjectsPage />} />
+              <Route path="tasks" element={<TasksPage />} />
+              <Route path="skills" element={<SkillsPage />} />
+              <Route path="secrets" element={<SecretsPage />} />
+              <Route path="integrations" element={<IntegrationsPage />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+        <Toaster />
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }
