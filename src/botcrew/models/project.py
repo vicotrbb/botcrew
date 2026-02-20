@@ -60,3 +60,19 @@ class ProjectFile(Base, UUIDPrimaryKeyMixin, AuditMixin):
     last_modified: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
+
+
+class ProjectSecret(Base, UUIDPrimaryKeyMixin, AuditMixin):
+    """Association between a project and an assigned secret."""
+
+    __tablename__ = "project_secrets"
+    __table_args__ = (
+        UniqueConstraint("project_id", "secret_id", name="uq_project_secret"),
+    )
+
+    project_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("projects.id"), nullable=False
+    )
+    secret_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), ForeignKey("secrets.id"), nullable=False
+    )
