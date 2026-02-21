@@ -118,7 +118,12 @@ class MemoryTools(Toolkit):
     def write_memory(self, content: str) -> str:
         """Replace your entire memory with new content. WARNING: This overwrites everything. Use append_memory to add to existing memory without losing previous content."""
         try:
-            result = self._request("PUT", "/memory", {"content": content})
+            result = self._request("PUT", "/memory", {
+                "data": {
+                    "type": "agent-memory",
+                    "attributes": {"content": content},
+                }
+            })
             if result is None:
                 return (
                     "Memory is temporarily unavailable. "
@@ -135,7 +140,12 @@ class MemoryTools(Toolkit):
     def append_memory(self, content: str) -> str:
         """Append new content to your existing memory. The new content is added to the end of your current memory with a newline separator. Use this to add new information without losing previous memory."""
         try:
-            result = self._request("PATCH", "/memory", {"append": content})
+            result = self._request("PATCH", "/memory", {
+                "data": {
+                    "type": "agent-memory",
+                    "attributes": {"append": content},
+                }
+            })
             if result is None:
                 return (
                     "Memory is temporarily unavailable. "

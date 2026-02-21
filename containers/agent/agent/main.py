@@ -85,18 +85,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             interval=config.get("heartbeat_interval_seconds", 300),
             prompt=config.get(
                 "heartbeat_prompt",
-                "Check your assigned tasks and projects for work that needs attention.\n\n"
-                "Use list_my_tasks and list_my_projects to see current assignments. "
-                "Read your memory to recall what you did previously and avoid re-doing completed work.\n\n"
-                "For each assigned project, check for a coordination doc at "
-                "/workspace/projects/{project_id}/.botcrew/coordination.md using read_file. "
-                "If none exists and you have project goals, create one and draft an initial plan. "
-                "If one exists, check your assigned work items and execute them via self_invoke.\n\n"
-                "For each task that needs work, use self_invoke with a focused instruction "
-                "describing exactly what to do. Each sub-call runs independently with full tool access.\n\n"
-                "When nothing needs attention, consider improving yourself -- reflect on recent work, "
-                "update your identity or personality, or refine this heartbeat prompt.\n\n"
-                "Only send messages to channels when you have something meaningful to share.",
+                "You are waking up for a heartbeat cycle. Complete ALL steps below.\n\n"
+                "STEP 1 -- READ MEMORY: Call read_memory to recall previous work.\n\n"
+                "STEP 2 -- CHECK MESSAGES: Call list_my_channels. For EACH channel, call "
+                "check_unread_messages. Reply to any unread messages using send_channel_message, "
+                "then call mark_messages_read. Do NOT skip this step.\n\n"
+                "STEP 3 -- CHECK ASSIGNMENTS: Call list_my_tasks and list_my_projects.\n\n"
+                "STEP 4 -- WORK ON PROJECTS: For each project, read the coordination doc at "
+                "/workspace/projects/{project_id}/.botcrew/coordination.md. "
+                "If it does not exist, create it with a plan. "
+                "If it exists, read it and work on your items via self_invoke.\n\n"
+                "STEP 5 -- WORK ON TASKS: For each task, use self_invoke to do the work.\n\n"
+                "STEP 6 -- REPORT PROGRESS (MANDATORY): You MUST send at least one message to each "
+                "project/task channel you are assigned to. Report what you did this cycle, what you "
+                "plan next, and any blockers. Use send_channel_message for each channel. "
+                "Also call append_memory to save what you accomplished.\n\n"
+                "Complete every step. Do not stop early.",
             ),
             on_activity=log_activity,
         )

@@ -67,11 +67,11 @@ is the single source of truth for project collaboration state.
 - Update the coordination doc immediately when you complete a work item (mark checkbox, add note).
 - Share significant progress, questions, and decisions in the project channel.
 
-### Communication Discipline
-- Only send a message when it adds NEW information or moves the project forward.
-- Do NOT reply just to acknowledge. "Got it" or "Sounds good" wastes attention.
-- Do NOT repeat information another agent has already shared.
-- Before replying, ask: "Does this response contain new information?" If not, do not send it.
+### Communication
+- During heartbeat, always report progress in your project/task channels. Status updates ARE
+  valuable new information -- your team needs to know what you did and what you plan next.
+- When replying to other agents' messages, add substance -- avoid empty acknowledgements
+  like "Got it" or "Sounds good" unless you have nothing else to add.
 - After processing messages from a channel, mark them as read so you do not re-process them.
 
 ### Completion
@@ -256,7 +256,7 @@ class AgentRuntime:
         tools = [
             ShellTools(),
             SleepTools(),
-            FileTools(),
+            FileTools(base_dir=Path("/workspace")),
             BrowserTools(browser_url=self.settings.browser_sidecar_url),
             MemoryTools(
                 orchestrator_url=self.settings.orchestrator_url,
@@ -543,7 +543,7 @@ class AgentRuntime:
         tools = [
             ShellTools(),
             SleepTools(),
-            FileTools(),
+            FileTools(base_dir=Path("/workspace")),
             BrowserTools(browser_url=self.settings.browser_sidecar_url),
             MemoryTools(
                 orchestrator_url=self.settings.orchestrator_url,

@@ -266,6 +266,7 @@ class CommunicationService:
             "sender_type": sender_type,
             "sender_id": sender_id,
             "message_id": str(msg.id),
+            "reply_channel_id": str(dm_channel.id),
         }
         await self._transport.deliver_to_agent(agent_id, dm_payload)
 

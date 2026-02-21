@@ -1,8 +1,9 @@
-"""Evaluate endpoint -- instant reply relevance evaluation for agent containers.
+"""Evaluate endpoint -- message evaluation for agent containers.
 
-POST /evaluate receives a channel message, fetches recent context from the
-orchestrator, and makes a single LLM call to decide whether the agent should
-respond. Uses an isolated session to avoid polluting conversation history.
+POST /evaluate receives a channel message context and processes it through the
+full agent runtime with all tools. The agent decides whether and how to respond
+using its CommunicationTools (send_channel_message). Uses an isolated session
+to avoid polluting main conversation history.
 """
 
 from __future__ import annotations
@@ -18,34 +19,29 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Evaluation prompt template -- single LLM call for relevance + response
-_EVALUATE_PROMPT = """A user ({sender}) just sent this message in a channel:
+# Evaluation prompt -- agent uses its own tools to respond
+_EVALUATE_PROMPT = """A user ({sender}) just sent this message in channel {channel_id}:
 
 "{message_content}"
 
 Recent conversation context (last {context_count} messages):
 {context_messages}
 
-You are {agent_name}. {agent_identity}
-
 {dm_or_channel_instruction}
 
-Consider:
-- Is this message relevant to your role, expertise, or assigned work?
-- Have other agents already adequately addressed this in the recent context?
-- Can you add unique value by responding?
-
-If you should respond, write your response below.
-If you should NOT respond (message is not relevant to you, or others have covered it), respond with exactly: [NO_RESPONSE]"""
+If you decide to respond, use send_channel_message(channel_id="{channel_id}", content="your response") to post your reply.
+After responding (or deciding not to), use mark_messages_read(channel_id="{channel_id}", last_message_id="{message_id}") to mark the message as read."""
 
 _DM_INSTRUCTION = (
-    "This is a direct message to you. Always respond helpfully -- "
-    "the user is specifically talking to you."
+    "This is a DIRECT MESSAGE to you personally. The user is specifically talking "
+    "to you and expects a reply. You MUST respond using send_channel_message."
 )
 
 _CHANNEL_INSTRUCTION = (
-    "Respond only if you can add unique value based on your role and expertise. "
-    "Do not respond just because you can -- respond because you should."
+    "This is a message in one of your assigned project or task channels. "
+    "You are part of this team. If the message asks a question, requests input, "
+    "or invites collaboration, respond with your perspective based on your role. "
+    "If the message is purely informational and needs no reply, just mark it as read."
 )
 
 
@@ -62,8 +58,6 @@ class EvaluateRequest(BaseModel):
 class EvaluateResponse(BaseModel):
     """Response from the /evaluate endpoint."""
 
-    should_respond: bool
-    content: str | None = None
     agent_id: str
 
 
@@ -106,18 +100,22 @@ def _fetch_channel_context(
 async def evaluate(
     request: Request, body: EvaluateRequest
 ) -> EvaluateResponse | JSONResponse:
-    """Evaluate whether to respond to a channel message and generate response.
+    """Evaluate a channel message and let the agent respond using its tools.
 
-    Makes a single LLM call that includes relevance evaluation and response
-    generation. If the agent decides not to respond, it outputs [NO_RESPONSE].
-    Uses an isolated session_id to avoid polluting main conversation history.
+    Processes the message through the full agent runtime with all tools
+    (including CommunicationTools). The agent decides whether to respond
+    and uses send_channel_message() to post its reply directly.
+
+    Uses process_message() with the full runtime so the agent has access
+    to all tools. The session is the agent's main session so it maintains
+    conversation context.
 
     Args:
         request: FastAPI request (provides app.state access).
         body: EvaluateRequest with channel, message, and DM flag.
 
     Returns:
-        EvaluateResponse with should_respond flag and optional content.
+        EvaluateResponse with agent_id.
         503 if the runtime is not initialized.
     """
     runtime = getattr(request.app.state, "runtime", None)
@@ -132,8 +130,6 @@ async def evaluate(
         "agent_id",
         getattr(request.app.state, "agent_id", "unknown"),
     )
-    agent_name = config.get("name", "Agent")
-    agent_identity = config.get("identity", "") or ""
     orchestrator_url = runtime.settings.orchestrator_url
 
     # Fetch recent channel context
@@ -141,27 +137,19 @@ async def evaluate(
         orchestrator_url, body.channel_id, count=10
     )
 
-    # Build evaluation prompt
+    # Build prompt -- agent will use its tools to respond
     dm_or_channel = _DM_INSTRUCTION if body.is_dm else _CHANNEL_INSTRUCTION
     prompt = _EVALUATE_PROMPT.format(
         sender=body.sender_user_identifier,
         message_content=body.message_content,
+        channel_id=body.channel_id,
+        message_id=body.message_id,
         context_count=10,
         context_messages=context_messages,
-        agent_name=agent_name,
-        agent_identity=agent_identity,
         dm_or_channel_instruction=dm_or_channel,
     )
 
-    # Use isolated evaluation -- does not pollute main conversation history
-    response_text = await runtime.evaluate_message(
-        prompt, session_id=f"evaluate-{body.message_id}"
-    )
+    # Process through full runtime -- agent has all tools including CommunicationTools
+    await runtime.process_message(prompt)
 
-    # Parse response: check for [NO_RESPONSE] marker
-    should_respond = "[NO_RESPONSE]" not in response_text
-    return EvaluateResponse(
-        should_respond=should_respond,
-        content=response_text if should_respond else None,
-        agent_id=agent_id,
-    )
+    return EvaluateResponse(agent_id=agent_id)
