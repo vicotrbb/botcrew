@@ -543,3 +543,157 @@ class ProjectService:
             )
         )
         return result.scalar_one_or_none()
+
+    # ------------------------------------------------------------------
+    # Workspace filesystem (read-only PVC access)
+    # ------------------------------------------------------------------
+
+    _EXCLUDED_DIRS = {".git", "__pycache__", "node_modules", ".venv"}
+    _MAX_DEPTH = 10
+    _MAX_ENTRIES = 1000
+    _MAX_FILE_SIZE = 1_048_576  # 1 MB
+
+    async def list_workspace_tree(self, project_id: str) -> dict:
+        """Walk the project workspace directory and return a nested tree.
+
+        Args:
+            project_id: UUID of the project.
+
+        Returns:
+            Nested dict with keys: name, type ("directory"|"file"),
+            size (for files), and children (for directories).
+
+        Raises:
+            ValueError: If project not found.
+            FileNotFoundError: If workspace directory does not exist.
+        """
+        project = await self.get_project(project_id)
+        if project is None:
+            raise ValueError(f"Project not found: {project_id}")
+
+        root = WORKSPACE_ROOT / str(project.id)
+        if not root.is_dir():
+            raise FileNotFoundError(
+                f"Workspace directory not found for project {project_id}"
+            )
+
+        counter = [0]
+        tree = self._build_tree(root, root, depth=0, counter=counter)
+        return tree
+
+    def _build_tree(
+        self,
+        root: Path,
+        current: Path,
+        depth: int,
+        counter: list[int],
+    ) -> dict:
+        """Recursively build a directory tree dict.
+
+        Args:
+            root: The project workspace root path.
+            current: The current directory being walked.
+            depth: Current recursion depth.
+            counter: Mutable list with single int for entry counting.
+
+        Returns:
+            Dict with name, type, and children/size.
+        """
+        node: dict = {
+            "name": current.name or str(current),
+            "type": "directory",
+            "children": [],
+        }
+
+        if depth >= self._MAX_DEPTH:
+            return node
+
+        try:
+            entries = sorted(current.iterdir(), key=lambda p: (p.is_file(), p.name.lower()))
+        except PermissionError:
+            return node
+
+        for entry in entries:
+            if counter[0] >= self._MAX_ENTRIES:
+                break
+
+            if entry.name in self._EXCLUDED_DIRS and entry.is_dir():
+                continue
+
+            counter[0] += 1
+
+            if entry.is_dir():
+                child = self._build_tree(root, entry, depth + 1, counter)
+                node["children"].append(child)
+            elif entry.is_file():
+                try:
+                    size = entry.stat().st_size
+                except OSError:
+                    size = 0
+                rel = str(entry.relative_to(root))
+                node["children"].append({
+                    "name": entry.name,
+                    "type": "file",
+                    "path": rel,
+                    "size": size,
+                })
+
+        return node
+
+    async def get_workspace_file_content(
+        self, project_id: str, file_path: str
+    ) -> dict:
+        """Read a file from the project workspace directory.
+
+        Args:
+            project_id: UUID of the project.
+            file_path: Relative path within the workspace.
+
+        Returns:
+            Dict with path, content (or None), size, and is_binary flag.
+
+        Raises:
+            ValueError: If project not found.
+            PermissionError: If path traversal is detected.
+            FileNotFoundError: If file does not exist.
+        """
+        project = await self.get_project(project_id)
+        if project is None:
+            raise ValueError(f"Project not found: {project_id}")
+
+        root = WORKSPACE_ROOT / str(project.id)
+        target = (root / file_path).resolve()
+
+        # Path traversal check
+        if not str(target).startswith(str(root.resolve())):
+            raise PermissionError("Access denied")
+
+        if not target.is_file():
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        size = target.stat().st_size
+        is_binary = self._is_binary_file(target)
+
+        content: str | None = None
+        if not is_binary and size <= self._MAX_FILE_SIZE:
+            try:
+                content = target.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                content = None
+
+        return {
+            "path": file_path,
+            "content": content,
+            "size": size,
+            "is_binary": is_binary,
+        }
+
+    @staticmethod
+    def _is_binary_file(path: Path) -> bool:
+        """Check if a file is binary by looking for null bytes in first 8KB."""
+        try:
+            with open(path, "rb") as f:
+                chunk = f.read(8192)
+            return b"\x00" in chunk
+        except OSError:
+            return True

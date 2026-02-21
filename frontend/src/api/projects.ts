@@ -7,6 +7,8 @@ import type {
   AssignAgentInput,
   ProjectSecret,
   AssignSecretInput,
+  WorkspaceTree,
+  WorkspaceFileContent,
 } from '@/types/project';
 import { fetchOne, fetchList, postJSON, patchJSON, deleteJSON } from '@/api/client';
 
@@ -56,4 +58,12 @@ export async function assignSecret(projectId: string, input: AssignSecretInput):
 
 export async function removeProjectSecret(projectId: string, secretId: string): Promise<void> {
   return deleteJSON(`/projects/${projectId}/secrets/${secretId}`);
+}
+
+export async function getWorkspaceTree(projectId: string): Promise<WorkspaceTree> {
+  return fetchOne<WorkspaceTree>(`/projects/${projectId}/workspace`);
+}
+
+export async function getWorkspaceFileContent(projectId: string, filePath: string): Promise<WorkspaceFileContent> {
+  return fetchOne<WorkspaceFileContent>(`/projects/${projectId}/workspace/content?path=${encodeURIComponent(filePath)}`);
 }

@@ -28,6 +28,7 @@ import { Separator } from '@/components/ui/separator';
 import { ProjectForm } from './ProjectForm';
 import { AgentAssignment } from './AgentAssignment';
 import { SecretAssignment } from './SecretAssignment';
+import { FileExplorer } from './FileExplorer';
 
 interface ProjectDetailSheetProps {
   projectId: string | null;
@@ -117,6 +118,11 @@ export function ProjectDetailSheet({
 
             {/* Secret assignment */}
             <SecretAssignment projectId={projectId!} />
+
+            <Separator />
+
+            {/* Workspace file explorer */}
+            <FileExplorer projectId={projectId!} />
 
             <Separator />
 

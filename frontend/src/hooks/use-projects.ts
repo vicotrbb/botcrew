@@ -8,6 +8,8 @@ import type {
   AssignAgentInput,
   ProjectSecret,
   AssignSecretInput,
+  WorkspaceTree,
+  WorkspaceFileContent,
 } from '@/types/project';
 import {
   getProjects,
@@ -22,6 +24,8 @@ import {
   getProjectSecrets,
   assignSecret as assignSecretApi,
   removeProjectSecret,
+  getWorkspaceTree,
+  getWorkspaceFileContent,
 } from '@/api/projects';
 
 export function useProjects() {
@@ -131,5 +135,21 @@ export function useRemoveSecret(projectId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['projects', projectId, 'secrets'] });
     },
+  });
+}
+
+export function useWorkspaceTree(projectId: string | null | undefined) {
+  return useQuery<WorkspaceTree>({
+    queryKey: ['projects', projectId, 'workspace'],
+    queryFn: () => getWorkspaceTree(projectId!),
+    enabled: !!projectId,
+  });
+}
+
+export function useWorkspaceFileContent(projectId: string | null | undefined, filePath: string | null) {
+  return useQuery<WorkspaceFileContent>({
+    queryKey: ['projects', projectId, 'workspace', 'content', filePath],
+    queryFn: () => getWorkspaceFileContent(projectId!, filePath!),
+    enabled: !!projectId && !!filePath,
   });
 }

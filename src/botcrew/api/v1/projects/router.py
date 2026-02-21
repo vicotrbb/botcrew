@@ -380,3 +380,55 @@ async def remove_secret(
         await service.remove_secret(project_id, secret_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# Workspace filesystem (read-only)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{project_id}/workspace")
+async def get_workspace_tree(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> JSONAPISingleResponse:
+    """Return a recursive directory tree of the project workspace."""
+    service = ProjectService(db)
+    try:
+        tree = await service.list_workspace_tree(project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return JSONAPISingleResponse(
+        data=JSONAPIResource(
+            type="workspace-tree",
+            id=project_id,
+            attributes={"tree": tree},
+        )
+    )
+
+
+@router.get("/{project_id}/workspace/content")
+async def get_workspace_file_content(
+    project_id: str,
+    path: str = Query(..., description="Relative file path within the workspace"),
+    db: AsyncSession = Depends(get_db),
+) -> JSONAPISingleResponse:
+    """Return the content of a single file in the project workspace."""
+    service = ProjectService(db)
+    try:
+        result = await service.get_workspace_file_content(project_id, path)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Access denied")
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return JSONAPISingleResponse(
+        data=JSONAPIResource(
+            type="workspace-file",
+            id=project_id,
+            attributes=result,
+        )
+    )

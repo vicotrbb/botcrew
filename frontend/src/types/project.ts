@@ -51,3 +51,22 @@ export interface ProjectSecret {
 export interface AssignSecretInput {
   secret_id: string;
 }
+
+export interface WorkspaceTreeNode {
+  name: string;
+  type: 'file' | 'directory';
+  path?: string;
+  size?: number;
+  children?: WorkspaceTreeNode[];
+}
+
+export interface WorkspaceTree {
+  tree: WorkspaceTreeNode;
+}
+
+export interface WorkspaceFileContent {
+  path: string;
+  content: string | null;
+  size: number;
+  is_binary: boolean;
+}
